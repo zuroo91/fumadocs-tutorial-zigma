@@ -1,0 +1,14 @@
+{
+  "title": "Mind Venture",
+  "pages": [
+    "index",
+    "setup-autentikasi",
+    "homepage-dashboard",
+    "sistem-karakter",
+    "sistem-combat",
+    "multiplayer",
+    "progress-rewards",
+    "leaderboard-ranking",
+    "deploy-testing"
+  ]
+}

@@ -1,0 +1,101 @@
+---
+title: Database Schema
+description: Skema Firestore untuk users, characters, dan match history.
+---
+
+# Database Schema
+
+Skema Firestore untuk game. Semua dokumen diakses dari client dengan rules
+yang membatasi akses berdasarkan `auth.uid`.
+
+## Collection: `users`
+
+```js
+{
+  uid: "string",
+  email: "string",
+  displayName: "string",
+  avatar: "url",
+  level: 1,
+  xp: 0,
+  gold: 1000,
+  gems: 100,
+  characters: ["warrior"],
+  inventory: [],
+  achievements: [],
+  rank: "Bronze",
+  createdAt: "timestamp"
+}
+```
+
+## Collection: `characters`
+
+```js
+{
+  id: "warrior",
+  name: "Warrior",
+  type: "Tank",
+  baseStats: {
+    hp: 100,
+    attack: 15,
+    defense: 25,
+    speed: 10
+  },
+  skills: [
+    { id: "shield_bash", name: "Shield Bash", damage: 20, cooldown: 2 },
+    { id: "block", name: "Block", effect: "reduce_damage_50%", cooldown: 3 }
+  ]
+}
+```
+
+## Collection: `questions`
+
+```js
+{
+  id: "auto_id",
+  category: "sains",
+  question: "Apa Rumus air?",
+  options: ["H2O", "CO2", "NaCl", "O2"],
+  correctAnswer: 0,
+  difficulty: "easy",
+  xpReward: 10
+}
+```
+
+## Collection: `matches`
+
+```js
+{
+  id: "match_abc",
+  players: {
+    "uid_1": { character: "warrior", hp: 100, score: 0 },
+    "uid_2": { character: "mage", hp: 100, score: 0 }
+  },
+  questions: ["q1", "q2", "q3"],
+  status: "ongoing",
+  winner: null,
+  startedAt: "timestamp",
+  endedAt: null
+}
+```
+
+## Security Rules (Ringkas)
+
+```js
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == uid;
+    }
+    match /questions/{qid} {
+      allow read: if request.auth != null;
+      allow write: if false; // admin only
+    }
+    match /matches/{mid} {
+      allow read, write: if request.auth.uid in resource.data.players;
+    }
+  }
+}
+```

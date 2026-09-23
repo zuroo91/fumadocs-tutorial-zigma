@@ -1,0 +1,56 @@
+---
+title: Deploy & Testing
+description: Build, deploy, dan monitoring.
+---
+
+# Deploy & Testing
+
+## Testing
+
+```bash
+# Run client dev server
+npm run dev:client
+
+# Run API server
+npm run dev:api
+
+# Run full dev (all services)
+npm run dev
+
+# Build client
+npm run build
+
+# Preview build
+npm run preview
+```
+
+## Deploy
+
+```bash
+# Build
+npm run build
+
+# Deploy ke Vercel/Netlify
+# Upload folder dist/
+```
+
+## Server Setup
+
+```bash
+# Server (Colyseus + REST API)
+npm run dev:server
+
+# Server runs on port 2567 (Colyseus WebSocket)
+# REST API on port 3001
+```
+
+## Monitoring
+
+Periksa log server:
+
+```bash
+# Pastikan server berjalan
+console.log(`🎮 Zigma Game Server running on http://localhost:${PORT}`);
+```
+
+Lanjutkan ke [Studi Kasus: Mind Venture →](/docs/games/mind-venture).

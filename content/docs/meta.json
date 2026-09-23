@@ -1,0 +1,17 @@
+{
+  "title": "Game Docs",
+  "root": true,
+  "pages": [
+    "getting-started",
+    "stack",
+    "structure",
+    "database",
+    "karakter",
+    "combat",
+    "multiplayer",
+    "progress",
+    "leaderboard",
+    "deploy",
+    "games"
+  ]
+}

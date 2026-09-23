@@ -1,0 +1,66 @@
+---
+title: Sistem Kategori
+description: 6 kategori kuis yang tersedia.
+---
+
+# Sistem Kategori
+
+Pemain dapat memilih salah satu dari 6 kategori kuis sebelum memulai permainan.
+
+## Daftar Kategori
+
+| Kategori | Emoji | Deskripsi |
+| -------- | ----- | --------- |
+| Sains | 🔬 | Soal sains pengetahuan umum |
+| Sejarah | 📜 | Soal sejarah Indonesia & dunia |
+| Budaya | 🎭 | Soal budaya dan tradisi |
+| Logika | 🧩 | Soal logika dan matematika |
+| Olahraga | ⚽ | Soal olahraga |
+| Teknologi | 💻 | Soal teknologi dan komputer |
+
+## Pemilihan Kategori
+
+```jsx title="src/pages/SelectQuizPage.tsx"
+const categories = [
+  { id: 'sains', icon: '🔬', name: 'Sains', color: '#6CC452' },
+  { id: 'sejarah', icon: '📜', name: 'Sejarah', color: '#FF5C5C' },
+  { id: 'budaya', icon: '🎭', name: 'Budaya', color: '#6CC452' },
+  { id: 'logika', icon: '🧩', name: 'Logika', color: '#FFD700' },
+  { id: 'olahraga', icon: '⚽', name: 'Olahraga', color: '#3498DB' },
+  { id: 'teknologi', icon: '💻', name: 'Teknologi', color: '#9B59B6' },
+];
+
+const SelectQuizPage = () => {
+  const navigate = useNavigate();
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [difficulty, setDifficulty] = useState('mudah');
+  const [totalQuestions, setTotalQuestions] = useState(5);
+
+  const handleCreateRoom = async () => {
+    if (!selectedCategory) return;
+    await createRoom({
+      category: selectedCategory,
+      difficulty,
+      totalQuestions,
+    });
+    navigate(`/game/${roomCode}`);
+  };
+
+  return (
+    <div className="category-grid">
+      {categories.map((cat) => (
+        <button
+          key={cat.id}
+          onClick={() => setSelectedCategory(cat.id)}
+          className={selectedCategory === cat.id ? 'selected' : ''}
+        >
+          <span className="icon">{cat.icon}</span>
+          <h3>{cat.name}</h3>
+        </button>
+      ))}
+    </div>
+  );
+};
+```
+
+Lanjut ke [Sistem Gameplay →](/docs/games/mind-venture/sistem-combat).

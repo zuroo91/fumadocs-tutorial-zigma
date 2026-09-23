@@ -1,0 +1,33 @@
+---
+title: Stack Teknologi
+description: Pilihan teknologi untuk membangun game.
+---
+
+# Stack Teknologi
+
+```
+Frontend:    HTML5, CSS3, JavaScript (React.js/Vue.js)
+Backend:     Node.js + Express / Firebase
+Database:    Firebase Firestore / MongoDB
+Auth:        Firebase Authentication
+Realtime:    Socket.io / Firebase Realtime Database
+Hosting:     Vercel / Netlify (Frontend), Heroku (Backend)
+Game Engine: Canvas / Phaser.js / PixiJS
+```
+
+## Mengapa stack ini?
+
+- **React + Vite** — HMR cepat dan build optimal. Cocok untuk SPA dengan banyak state.
+- **Firebase** — Auth + Firestore + Hosting jadi satu paket, gratis untuk MVP.
+- **Socket.io** — Sudah battle-tested untuk real-time multiplayer, fallback otomatis
+  ke long-polling jika WebSocket tidak tersedia.
+- **Zustand** — State management ringan (3KB) tanpa boilerplate Redux.
+
+## Alternatif
+
+| Komponen   | Alternatif                  | Trade-off                                    |
+| ---------- | --------------------------- | -------------------------------------------- |
+| Backend    | Supabase, Appwrite          | Self-hostable, SQL-based                     |
+| Realtime   | Firebase Realtime DB, Ably  | Vendor lock-in vs latency                    |
+| State      | Redux Toolkit, Jotai        | Lebih verbose vs lebih ergonomis             |
+| Game Engine| Phaser, PixiJS, Three.js    | Asset berat vs kontrol penuh                 |

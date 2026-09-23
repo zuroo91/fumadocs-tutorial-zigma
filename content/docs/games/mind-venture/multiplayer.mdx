@@ -1,0 +1,85 @@
+---
+title: Mode Multipemain
+description: Sistem room host dan join secara real-time.
+---
+
+# Mode Multipemain
+
+Pemain bisa membuat room (HOST) atau bergabung ke room yang sudah ada (JOIN).
+
+## Flow Permainan
+
+```
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│   HOME PAGE  │  │  HOST GAME   │  │ JOIN GAME    │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │
+       │           ┌─────▼─────┐     ┌─────▼─────┐
+       │           │  /host    │     │  /join    │
+       │           │  Setup    │     │  Room Code│
+       │           │  Lobby    │     │  Profil   │
+       │           └─────┬─────┘     └─────┬─────┘
+       │                 │                 │
+       │           ┌─────▼─────────────────▼─────┐
+       │           │  WAITING ROOM                │
+       │           │  Tunggu host mulai game      │
+       │           └──────────────┬───────────────┘
+       │                          │
+       │                    ┌─────▼─────┐
+       │                    │ QUIZ GAME │
+       │                    │ 15s/soal  │
+       │                    │ 4 opsi    │
+       │                    └─────┬─────┘
+       │                          │
+       │                    ┌─────▼─────┐
+       │                    │  RESULT   │
+       │                    │  Podium   │
+       │                    └───────────┘
+```
+
+## Room Management
+
+Room disimpan di Supabase (tabel `rooms`):
+
+```ts title="src/lib/api.ts"
+export async function createRoom(hostId: string, quizId: string, timePerQuestion: number, totalQuestions: number) {
+  const response = await fetch(`${API_URL}/rooms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hostId, quizId, timePerQuestion, totalQuestions }),
+  });
+  return response.json();
+}
+```
+
+## Realtime Subscription
+
+```ts title="src/hooks/useRoom.ts"
+export const useRoom = (roomCode: string) => {
+  const [room, setRoom] = useState<Room | null>(null);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = await getRoom(roomCode);
+      setRoom(data.room);
+      setParticipants(data.participants);
+    };
+    fetchData();
+    const interval = setInterval(fetchData, 2000);
+    return () => clearInterval(interval);
+  }, [roomCode]);
+
+  return { room, participants, loading, refetch: fetchData };
+};
+```
+
+## Status Room
+
+| Status | Deskripsi |
+| ------ | --------- |
+| `waiting` | Menunggu pemain bergabung |
+| `playing` | Game sedang berlangsung |
+| `finished` | Game selesai |
+
+Lanjutkan ke [Scoring & Rewards →](/docs/games/mind-venture/progress-rewards).

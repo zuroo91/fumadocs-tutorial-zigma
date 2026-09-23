@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+:root {
+  --color-fd-primary: #6C5CE7;
+  --color-fd-secondary: #00CEC9;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+@theme {
+  --color-game-primary: #6C5CE7;
+  --color-game-secondary: #00CEC9;
+  --color-game-danger: #FF6B6B;
+  --color-game-success: #51CF66;
+  --color-game-warning: #FFD43B;
+  --color-game-dark: #2D3436;
+  --color-game-light: #DFE6E9;
+}

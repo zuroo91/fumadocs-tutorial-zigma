@@ -1,0 +1,56 @@
+---
+title: Leaderboard & Ranking
+description: Ranking global dan sistem level.
+---
+
+# Leaderboard & Ranking
+
+## Global Leaderboard
+
+Tampilkan ranking pemain terbaik:
+
+```tsx title="src/pages/LeaderboardPage.tsx"
+const LeaderboardPage: React.FC = () => {
+  const [globalPlayers, setGlobalPlayers] = useState<Player[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = await getGlobalLeaderboard();
+      setGlobalPlayers(data.slice(0, 10));
+    };
+    fetchData();
+  }, []);
+
+  return (
+    <div className="leaderboard">
+      <h2>🏆 Global Leaderboard</h2>
+      {globalPlayers.map((player, index) => (
+        <div key={player.id}>
+          <span>#{index + 1}</span>
+          <span>{player.nickname}</span>
+          <span>{player.score}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+## Ranking Room
+
+```ts
+// Diurutkan berdasarkan skor tertinggi
+const ranking = players.sort((a, b) => b.score - a.score);
+```
+
+## Level
+
+Level dihitung berdasarkan total skor kumulatif:
+
+```ts
+export const getLevel = (totalScore: number): number => {
+  return Math.floor(totalScore / 500) + 1;
+};
+```
+
+Lanjutkan ke [Deploy & Testing →](/docs/games/mind-venture/deploy-testing).

@@ -1,0 +1,70 @@
+---
+title: Setup & Autentikasi
+description: Inisialisasi project dan konfigurasi environment.
+---
+
+# Setup & Autentikasi
+
+## Inisialisasi Project
+
+```bash
+mkdir zigma-game && cd zigma-game
+npm init -y
+
+# Install dependencies utama
+npm install react react-dom react-router-dom
+npm install @supabase/supabase-js
+
+# Install dev dependencies
+npm install -D vite @vitejs/plugin-react typescript tailwindcss
+```
+
+## Konfigurasi Environment
+
+Buat file `.env.local`:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_API_URL=http://localhost:3001
+```
+
+## Supabase Client Setup
+
+```ts title="src/lib/supabase.ts"
+import { createClient } from '@supabase/supabase-js';
+
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL || '',
+  import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+);
+```
+
+## Struktur Project
+
+```
+zigma-game/
+├── .env.local
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tailwind.config.js
+├── src/
+│   ├── main.tsx
+│   ├── App.tsx
+│   ├── lib/
+│   │   ├── supabase.ts
+│   │   ├── types.ts
+│   │   ├── api.ts
+│   │   └── scoreUpdateQueue.ts
+│   ├── hooks/
+│   │   ├── useRoom.ts
+│   │   └── useTimer.ts
+│   ├── pages/
+│   └── game/
+└── server/
+    └── src/
+        └── server.ts
+```
+
+Lanjutkan ke [Homepage & Dashboard →](/docs/games/mind-venture/homepage-dashboard).

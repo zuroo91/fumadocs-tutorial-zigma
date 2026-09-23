@@ -1,0 +1,101 @@
+---
+title: Mulai Sekarang
+description: Setup project dari nol dan install semua dependency.
+icon: Rocket
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Mulai Sekarang
+
+Selamat datang di build guide **Mind Venture**! Di bagian ini kamu akan
+mempersiapkan environment dan project skeleton untuk mulai membangun game kuis RPG
+multiplayer.
+
+<Callout type="info">
+  Estimasi waktu: **30 menit** untuk setup awal, lalu **4-6 minggu** untuk MVP
+  lengkap dengan multiplayer real-time.
+</Callout>
+
+## Prasyarat
+
+Pastikan tools berikut sudah terpasang di mesin kamu:
+
+- **Node.js** versi LTS (≥ 18) — [download](https://nodejs.org/)
+- **Git** untuk version control
+- **Akun Firebase** gratis (Spark plan) untuk Auth, Firestore, dan Hosting
+- **Code editor** — rekomendasi: VS Code dengan ekstensi ESLint + Prettier
+
+## Quick Start
+
+```bash
+# 1. Buat project baru
+mkdir mind-venture-game && cd mind-venture-game
+npm init -y
+
+# 2. Install dependencies utama
+npm install react react-dom react-router-dom
+npm install firebase
+npm install socket.io socket.io-client
+npm install axios
+
+# 3. Install dev dependencies
+npm install -D vite @vitejs/plugin-react
+```
+
+## Struktur Project
+
+```
+mind-venture-game/
+├── public/
+│   ├── assets/
+│   │   ├── characters/
+│   │   ├── backgrounds/
+│   │   └── ui/
+│   └── index.html
+├── src/
+│   ├── components/
+│   │   ├── auth/
+│   │   │   ├── Login.jsx
+│   │   │   ├── Register.jsx
+│   │   │   └── AuthForm.jsx
+│   │   ├── home/
+│   │   │   ├── Homepage.jsx
+│   │   │   ├── Profile.jsx
+│   │   │   └── Leaderboard.jsx
+│   │   ├── game/
+│   │   │   ├── CharacterSelect.jsx
+│   │   │   ├── BattleArena.jsx
+│   │   │   ├── QuizPanel.jsx
+│   │   │   └── CombatSystem.jsx
+│   │   ├── shop/
+│   │   │   ├── Shop.jsx
+│   │   │   └── Inventory.jsx
+│   │   └── common/
+│   │       ├── Navbar.jsx
+│   │       └── Loading.jsx
+│   ├── pages/
+│   │   ├── LoginPage.jsx
+│   │   ├── RegisterPage.jsx
+│   │   ├── HomePage.jsx
+│   │   ├── GamePage.jsx
+│   │   └── ProfilePage.jsx
+│   ├── hooks/
+│   │   ├── useAuth.js
+│   │   └── useGame.js
+│   ├── services/
+│   │   ├── firebase.js
+│   │   ├── authService.js
+│   │   └── gameService.js
+│   ├── context/
+│   │   └── AuthContext.jsx
+│   ├── styles/
+│   │   └── global.css
+│   ├── App.jsx
+│   └── main.jsx
+├── package.json
+└── vite.config.js
+```
+
+Lanjut ke [Stack Teknologi](/docs/stack) untuk melihat pilihan stack dan alasannya,
+atau [Struktur Project](/docs/structure) untuk layout folder yang disarankan.

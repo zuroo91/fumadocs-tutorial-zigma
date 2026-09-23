@@ -1,0 +1,70 @@
+---
+title: Homepage & Dashboard
+description: Halaman utama, profil pemain, dan navigasi.
+---
+
+# Homepage & Dashboard
+
+Halaman utama sebelum masuk ke permainan. Menampilkan navigasi untuk HOST GAME dan JOIN GAME.
+
+## Layout
+
+```tsx title="src/pages/HomePage.tsx"
+const HomePage: React.FC = () => {
+  const navigate = useNavigate();
+  const [nickname, setNickname] = useState('');
+  const [avatar, setAvatar] = useState('🎮');
+
+  return (
+    <div className="min-h-screen relative fantasy-bg">
+      <main className="relative z-10 p-4 md:p-8">
+        <div className="max-w-2xl mx-auto">
+          <h1>ZIGMA QUIZ</h1>
+
+          {/* Setup Profil */}
+          <div className="profile-setup">
+            <input
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="Masukkan nickname"
+            />
+            <AvatarSelector selected={avatar} onSelect={setAvatar} />
+          </div>
+
+          {/* Menu Utama */}
+          <div className="menu-grid">
+            <button onClick={() => navigate('/host')}>
+              <span>HOST GAME</span>
+            </button>
+            <button onClick={() => navigate('/join')}>
+              <span>JOIN GAME</span>
+            </button>
+          </div>
+
+          {/* How to Play */}
+          <HowToPlayDialog />
+        </div>
+      </main>
+    </div>
+  );
+};
+```
+
+## Profil Pemain
+
+Profil disimpan di localStorage:
+
+```tsx
+const setProfile = () => {
+  localStorage.setItem('zigma_user', JSON.stringify({ nickname, avatar }));
+};
+```
+
+## Navigasi
+
+| Tombol | Rute | Deskripsi |
+| ------ | ---- | --------- |
+| HOST GAME | `/host` | Buat room baru |
+| JOIN GAME | `/join` | Masuk ke room dengan kode |
+
+Lanjutkan ke [Sistem Kategori →](/docs/games/mind-venture/sistem-karakter).

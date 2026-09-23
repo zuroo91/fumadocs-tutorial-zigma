@@ -1,0 +1,82 @@
+---
+title: Struktur Project
+description: Layout folder standar untuk proyek game.
+---
+
+# Struktur Project
+
+```
+zigma-game/
+├── public/
+│   ├── assets/
+│   │   ├── characters/
+│   │   │   ├── warrior.png
+│   │   │   ├── mage.png
+│   │   │   ├── ranger.png
+│   │   │   └── healer.png
+│   │   ├── backgrounds/
+│   │   │   ├── arena.png
+│   │   │   └── lobby.png
+│   │   └── ui/
+│   │       ├── icons/
+│   │       ├── buttons/
+│   │       └── frames/
+│   └── index.html
+├── src/
+│   ├── components/
+│   │   ├── auth/
+│   │   │   ├── Login.jsx
+│   │   │   ├── Register.jsx
+│   │   │   └── AuthForm.jsx
+│   │   ├── home/
+│   │   │   ├── Homepage.jsx
+│   │   │   ├── Profile.jsx
+│   │   │   └── Leaderboard.jsx
+│   │   ├── game/
+│   │   │   ├── CharacterSelect.jsx
+│   │   │   ├── BattleArena.jsx
+│   │   │   ├── QuizPanel.jsx
+│   │   │   └── CombatSystem.jsx
+│   │   ├── shop/
+│   │   │   ├── Shop.jsx
+│   │   │   └── Inventory.jsx
+│   │   └── common/
+│   │       ├── Navbar.jsx
+│   │       └── Loading.jsx
+│   ├── pages/
+│   │   ├── LoginPage.jsx
+│   │   ├── RegisterPage.jsx
+│   │   ├── HomePage.jsx
+│   │   ├── GamePage.jsx
+│   │   └── ProfilePage.jsx
+│   ├── hooks/
+│   │   ├── useAuth.js
+│   │   └── useGame.js
+│   ├── services/
+│   │   ├── firebase.js
+│   │   ├── authService.js
+│   │   └── gameService.js
+│   ├── context/
+│   │   └── AuthContext.jsx
+│   ├── styles/
+│   │   └── global.css
+│   ├── App.jsx
+│   └── main.jsx
+├── server/
+│   ├── matchmaking.js
+│   ├── game-room.js
+│   └── index.js
+├── package.json
+└── vite.config.js
+```
+
+## Prinsip Organisasi
+
+1. **Domain-driven** — Kelompokkan komponen berdasarkan fitur (`auth`, `game`, `shop`),
+   bukan berdasarkan jenis (`components`, `containers`).
+2. **Co-locate state** — Zustand store untuk fitur besar diletakkan di `store/<feature>.js`
+   di samping komponennya.
+3. **Service layer** — Semua interaksi Firebase/Socket.io dibungkus di `services/`,
+   komponen tidak boleh import Firebase langsung.
+4. **Server terpisah** — Game logic yang sensitif (matchmaking, anti-cheat) ditaruh
+   di folder `server/` independen agar bisa di-scale terpisah.
