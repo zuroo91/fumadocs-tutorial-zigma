@@ -1,0 +1,44 @@
+---
+title: Overview
+description: Tutorial membangun game kuis multiplayer bergaya pixel retro.
+---
+
+# Zigma
+
+**Zigma** merupakan game kuis multiplayer dengan tema pixel retro. Pemain bisa:
+
+- ✅ **Quiz** — menjawab soal dalam batas waktu
+- ✅ **Multiplayer** — host atau join room secara real-time
+- ✅ **Kategori** — pilih dari 6 topik kuis berbeda
+- ✅ **Kompetisi** — skor berdasarkan kecepatan dan ketepatan
+
+Halaman ini menunjukkan penerapan modul-modul dalam satu produk jadi.
+Ikuti step-by-step dari setup hingga deploy.
+
+## Daftar Modul
+
+Berikut adalah daftar lengkap modul tutorial yang tersusun sesuai alur pengembangan dan alur permainan Zigma:
+
+### 1. Dasar & Setup
+1. [Setup & Autentikasi](/docs/tutorial/setup-autentikasi) — Inisialisasi project, struktur workspace, dan konfigurasi environment.
+2. [Homepage & Dashboard](/docs/tutorial/homepage-dashboard) — Halaman navigasi utama, opsi Host & Join, dan tampilan profil.
+
+### 2. Room & Koneksi
+3. [Join Session](/docs/tutorial/join/join-session) — Alur pemain memasukkan kode room, nickname, avatar, dan masuk ke antrean.
+4. [Host: Create Room](/docs/tutorial/host/create-room) — Pembuatan room permainan, pemilihan kategori kuis, tingkat kesulitan, dan batas waktu.
+5. [Host: Host Lobby](/docs/tutorial/host/host-lobby) — Ruang tunggu host, monitoring daftar pemain yang bergabung, dan trigger mulai game.
+
+### 3. Gameplay & Real-time Client
+6. [Player: Mode Multipemain](/docs/tutorial/player/multiplayer) — Sinkronisasi real-time Socket.io antara client pemain dan server game.
+7. [Player: Sistem Gameplay](/docs/tutorial/player/sistem-gameplay) — Kontrol karakter retro pixel, arena 2D, deteksi rintangan, monster, dan peti harta karun.
+8. [Player: Sistem Quiz](/docs/tutorial/player/sistem-kuis) — Mekanik antarmuka kuis, timer soal, opsi jawaban, dan validasi jawaban.
+9. [Host: Host Monitor](/docs/tutorial/host/host-monitor) — Layar spectator monitor untuk host melihat progres live seluruh pemain di arena.
+
+### 4. Hasil & Evaluasi
+10. [Player: Sistem Result](/docs/tutorial/player/sistem-result) — Tampilan hasil personal pemain, ringkasan akurasi, dan perolehan reward.
+11. [Scoring & Rewards](/docs/tutorial/host/progress-rewards) — Formula kalkulasi skor, bonus streak ketepatan/kecepatan, dan sistem reward.
+12. [Leaderboard & Ranking](/docs/tutorial/host/leaderboard-ranking) — Podium juara, klasemen skor akhir pertandingan, dan ranking.
+
+### 5. Finalisasi
+13. [Deploy & Testing](/docs/tutorial/deploy-testing) — Pengujian sistem, build production client & server, dan proses deployment.
+

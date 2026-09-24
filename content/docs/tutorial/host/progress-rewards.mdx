@@ -1,0 +1,239 @@
+---
+title: Scoring & Rewards
+description: Sistem skor server-side Zigma — formula, chest bonus, deteksi selesai, dan ranking final.
+---
+
+# Scoring & Rewards
+
+Skor di Zigma bersifat **server-side dan authoritative** — semua kalkulasi dilakukan di `GameRoom.ts` di server, bukan di client. Skor disimpan di **Colyseus Player Schema** dan disinkronkan real-time ke seluruh klien. Rentang skor: **0 – 100**.
+
+---
+
+## 1. Schema Skor di State Player
+
+Semua data skor disimpan dalam Colyseus `Player` schema yang disinkronkan real-time:
+
+```typescript title="server/src/shared/state.ts"
+export class Player extends Schema {
+    @type("number") score: number = 0;              // Skor utama (0–100)
+    @type("number") correctAnswers: number = 0;     // Jumlah jawaban benar
+    @type("number") wrongAnswers: number = 0;       // Jumlah jawaban salah
+    @type("number") answeredQuestions: number = 0;  // Total soal yang sudah dikerjakan
+    @type("boolean") isFinished: boolean = false;   // Apakah pemain sudah selesai semua soal
+    @type("number") finishTime: number = 0;         // Timestamp selesai (tie-breaker ranking)
+    @type("boolean") isIncomplete: boolean = false; // Ditandai jika waktu habis sebelum selesai
+}
+```
+
+---
+
+## 2. Formula Skor per Soal Benar
+
+Satu soal benar memberikan poin yang **proporsional terhadap total limit soal**, sehingga apapun jumlah soalnya, skor maksimal selalu **100**:
+
+```typescript title="server/src/rooms/GameRoom.ts"
+private applyCorrectAnswer(client: Client, data: any) {
+    const player = this.getPlayerByClient(client);
+    if (player && !player.isFinished) {
+        player.correctAnswers++;
+        player.answeredQuestions++;
+
+        // Ambil batas soal dari setting room (bisa angka atau 'all')
+        const qLimitRaw = String(this.questionLimit);
+        const qLimit = parseInt(qLimitRaw);
+        let totalQuestions = isNaN(qLimit) || qLimit <= 0
+            ? this.serverQuestions.length || 1
+            : qLimit;
+
+        // Formula: tiap soal benar = 100 / totalSoal poin
+        const pointsPerCorrect = 100 / (totalQuestions || 1);
+
+        const oldScore = player.score;
+        player.score = Math.min(100, player.score + pointsPerCorrect); // Tidak melebihi 100
+
+        console.log(
+            `[GameRoom] Score: ${oldScore.toFixed(2)} -> ${player.score.toFixed(2)} (Limit: ${totalQuestions})`
+        );
+
+        this.syncParticipantToGameSessions(client); // Sinkron ke DB secara real-time
+    }
+}
+```
+
+### Contoh Perhitungan
+
+| Total Soal | Poin per Jawaban Benar | Contoh (8 soal benar) |
+| ---------- | ---------------------- | --------------------- |
+| 5 soal     | 100 / 5 = **20 poin**  | max 5 soal → 5 × 20 = **100** |
+| 10 soal    | 100 / 10 = **10 poin** | 8 × 10 = **80 poin**  |
+| 20 soal    | 100 / 20 = **5 poin**  | 8 × 5 = **40 poin**   |
+
+---
+
+## 3. Jawaban Salah — Tidak Mengurangi Skor
+
+Jawaban salah **tidak mengurangi skor**, hanya menambah counter `wrongAnswers` dan mencatat jawaban ke database untuk statistik:
+
+```typescript title="server/src/rooms/GameRoom.ts"
+private applyWrongAnswer(client: Client, data: any) {
+    const player = this.getPlayerByClient(client);
+    if (player && !player.isFinished) {
+        player.wrongAnswers++;        // Hanya counter, TIDAK ada pengurangan score
+        player.answeredQuestions++;
+        player.hasWrongAnswer = true;
+        player.lastWrongQuestionId = data.questionId;
+
+        // Catat ke DB untuk statistik
+        this.appendAnswerToGameSessions(client, {
+            question_id: String(data.questionId),
+            answer_id: String(data.answerId),
+            correct: false,
+            timestamp: Date.now(),
+        });
+
+        this.syncParticipantToGameSessions(client);
+    }
+}
+```
+
+---
+
+## 4. Bonus Skor dari Chest (Peti Harta)
+
+Pemain dapat menemukan **Chest** di peta arena. Jika berhasil menjawab soal dalam chest dengan benar, mereka mendapatkan **bonus poin setengah dari nilai normal**. Validasi jawaban dilakukan server-side — klien tidak bisa curang:
+
+```typescript title="server/src/rooms/GameRoom.ts"
+// Handler pesan dari klien
+this.onMessage("addScoreFromChest", (client, data) => {
+    if (this.state.isGameOver) return;
+    // Server validasi jawaban sebelum memberi skor
+    if (!this.isAnswerCorrect(data?.questionId, data?.answerId)) return;
+    this.applyChestCorrectAnswer(client, data);
+});
+
+private applyChestCorrectAnswer(client: Client, data: any) {
+    const player = this.getPlayerByClient(client);
+    if (!player || player.isFinished) return;
+
+    const pointsPerCorrect = 100 / (totalQuestions || 1);
+    // Bonus chest = setengah dari poin soal biasa
+    const chestReward = data?.amount || pointsPerCorrect / 2;
+
+    player.score = Math.min(100, player.score + chestReward);
+    player.correctAnswers++;
+    player.answeredQuestions++;
+
+    console.log(
+        `[Chest] ${player.name} retry correct. +${chestReward.toFixed(2)} pts (Standard: ${pointsPerCorrect.toFixed(2)})`
+    );
+}
+```
+
+| Sumber Poin      | Formula                               |
+| ---------------- | ------------------------------------- |
+| Soal biasa benar | `100 / totalSoal`                     |
+| Chest benar      | `(100 / totalSoal) / 2` (setengahnya) |
+| Salah (biasa/chest) | `0` (tidak ada pengurangan)        |
+
+---
+
+## 5. Deteksi Pemain Selesai (`isFinished`)
+
+Setiap kali `answeredQuestions >= totalQuestions`, server langsung menandai pemain sebagai selesai dan mencatat `finishTime` sebagai tie-breaker:
+
+```typescript title="server/src/rooms/GameRoom.ts"
+// Di dalam applyCorrectAnswer & applyWrongAnswer (setelah update counter)
+if (player.answeredQuestions >= totalQuestions && !player.isFinished) {
+    player.isFinished = true;
+    player.finishTime = Date.now(); // Dicatat untuk tie-breaker ranking
+
+    // Kirim snapshot hasil ke pemain ini (rank: -1 = belum final)
+    client.send("playerFinished", {
+        rank: -1,
+        sessionId: player.sessionId,
+        name: player.name,
+        score: player.score,
+        finishTime: player.finishTime,
+        duration: player.finishTime - this.state.gameStartTime,
+        correctAnswers: player.correctAnswers,
+        wrongAnswers: player.wrongAnswers,
+    });
+
+    this.checkGameEnd(); // Cek apakah semua pemain sudah selesai
+}
+```
+
+---
+
+## 6. Penghitungan Ranking Final
+
+Saat kuis berakhir (timer habis atau semua pemain selesai), server menghitung ranking dengan **2 kriteria urutan**:
+
+1. **Skor tertinggi dahulu** (`score DESC`)
+2. **Jika skor sama → yang lebih cepat selesai menang** (`finishTime ASC`)
+
+```typescript title="server/src/rooms/GameRoom.ts"
+// endGame() — dipanggil saat timer habis atau semua pemain selesai
+
+// Tandai pemain yang belum selesai sebagai isIncomplete
+this.state.players.forEach((player) => {
+    if (!player.isFinished) {
+        player.isIncomplete = true;
+        player.isFinished = true;
+        player.finishTime = Date.now();
+    }
+});
+
+// Sort: skor DESC → finishTime ASC (tie-breaker)
+const rankings = Array.from(this.state.players.values())
+    .sort((a, b) => {
+        if (b.score !== a.score) {
+            return b.score - a.score;       // Skor lebih tinggi → rank lebih kecil
+        }
+        return a.finishTime - b.finishTime; // Selesai lebih cepat → rank lebih baik
+    })
+    .map((player, index) => ({
+        rank: index + 1,
+        sessionId: player.sessionId,
+        name: player.name,
+        score: Math.round(player.score),    // Dibulatkan ke integer
+        finishTime: player.finishTime,
+        duration: player.finishTime > 0 ? player.finishTime - this.state.gameStartTime : 0,
+        correctAnswers: player.correctAnswers,
+        wrongAnswers: player.wrongAnswers,
+        isIncomplete: player.isIncomplete,  // Ditandai jika waktu habis sebelum selesai
+    }));
+
+// Broadcast ranking final ke semua klien
+this.broadcast("gameEnded", { rankings, supabaseSessionId: this.sessionId });
+```
+
+---
+
+## Ringkasan Alur Skor
+
+```
+Pemain jawab soal → Server: isAnswerCorrect()
+        │
+        ├── BENAR  → score += (100 / totalSoal)       [max 100]
+        │            correctAnswers++, answeredQuestions++
+        │
+        ├── SALAH  → score tidak berubah
+        │            wrongAnswers++, answeredQuestions++
+        │
+        └── CHEST  → score += (100 / totalSoal) / 2   [bonus setengah]
+                     correctAnswers++, answeredQuestions++
+
+answeredQuestions >= totalSoal
+    → isFinished = true
+    → finishTime = Date.now()   (tie-breaker)
+    → client.send("playerFinished", ...)
+    → checkGameEnd()
+
+Game berakhir (timer / semua selesai):
+    → Sort: score DESC → finishTime ASC
+    → rank ditetapkan (1 = terbaik)
+    → broadcast("gameEnded", { rankings })
+```
+
+Lanjutkan ke [Leaderboard & Ranking →](/docs/tutorial/host/leaderboard-ranking).

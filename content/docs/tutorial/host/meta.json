@@ -1,0 +1,10 @@
+{
+  "title": "Host",
+  "pages": [
+    "create-room",
+    "host-lobby",
+    "host-monitor",
+    "progress-rewards",
+    "leaderboard-ranking"
+  ]
+}

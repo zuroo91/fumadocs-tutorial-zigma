@@ -1,82 +1,119 @@
 ---
 title: Struktur Project
-description: Layout folder standar untuk proyek game.
+description: Tata letak folder dan arsitektur untuk proyek Zigma.
 ---
 
 # Struktur Project
 
-```
-zigma-game/
-├── public/
-│   ├── assets/
-│   │   ├── characters/
-│   │   │   ├── warrior.png
-│   │   │   ├── mage.png
-│   │   │   ├── ranger.png
-│   │   │   └── healer.png
-│   │   ├── backgrounds/
-│   │   │   ├── arena.png
-│   │   │   └── lobby.png
-│   │   └── ui/
-│   │       ├── icons/
-│   │       ├── buttons/
-│   │       └── frames/
-│   └── index.html
-├── src/
-│   ├── components/
-│   │   ├── auth/
-│   │   │   ├── Login.jsx
-│   │   │   ├── Register.jsx
-│   │   │   └── AuthForm.jsx
-│   │   ├── home/
-│   │   │   ├── Homepage.jsx
-│   │   │   ├── Profile.jsx
-│   │   │   └── Leaderboard.jsx
-│   │   ├── game/
-│   │   │   ├── CharacterSelect.jsx
-│   │   │   ├── BattleArena.jsx
-│   │   │   ├── QuizPanel.jsx
-│   │   │   └── CombatSystem.jsx
-│   │   ├── shop/
-│   │   │   ├── Shop.jsx
-│   │   │   └── Inventory.jsx
-│   │   └── common/
-│   │       ├── Navbar.jsx
-│   │       └── Loading.jsx
-│   ├── pages/
-│   │   ├── LoginPage.jsx
-│   │   ├── RegisterPage.jsx
-│   │   ├── HomePage.jsx
-│   │   ├── GamePage.jsx
-│   │   └── ProfilePage.jsx
-│   ├── hooks/
-│   │   ├── useAuth.js
-│   │   └── useGame.js
-│   ├── services/
-│   │   ├── firebase.js
-│   │   ├── authService.js
-│   │   └── gameService.js
-│   ├── context/
-│   │   └── AuthContext.jsx
-│   ├── styles/
-│   │   └── global.css
-│   ├── App.jsx
-│   └── main.jsx
-├── server/
-│   ├── matchmaking.js
-│   ├── game-room.js
-│   └── index.js
+Zigma disusun sebagai **npm workspaces** dengan `client`, `server`, dan `shared`, serta folder pendukung asset raw.
+
+## 1. Struktur Folder Utama
+
+* **`client/`**: Menggunakan **Vite + TypeScript + Phaser 3** untuk rendering visual game 2D, UI overlay HTML/CSS, manajemen scene, input, dan komunikasi ke server.
+* **`server/`**: Menggunakan **Express + Colyseus** untuk API endpoint dan real-time multiplayer, serta menjadi pengelola utama *game logic*.
+* **`shared/`**: Berisi *state* dan *type* yang digunakan bersama antara client dan server.
+* **`Hard/`**: Berisi source/raw asset map Tiled.
+* **`server/public/`**: Berisi asset yang disajikan oleh server.
+
+## 2. Tree Struktur Project
+
+```text
+MultiplayerGameQuiz/
 ├── package.json
-└── vite.config.js
+├── Dockerfile
+├── ecosystem.config.js
+├── railway.json / render.yaml
+├── shared/
+│   ├── state.ts
+│   └── dummyQuestions.ts
+├── Hard/
+├── client/
+│   ├── index.html
+│   ├── bot.html
+│   ├── vite.config.ts
+│   └── src/
+│       ├── main.ts
+│       ├── game.ts
+│       ├── app.css
+│       ├── data/
+│       ├── lib/
+│       ├── locales/
+│       ├── scenes/
+│       │   ├── login/
+│       │   ├── lobby/
+│       │   ├── host/
+│       │   ├── player/
+│       │   └── test/
+│       ├── services/
+│       ├── systems/
+│       ├── ui/
+│       └── utils/
+└── server/
+    ├── package.json
+    ├── deploy.sh / ecosystem.*
+    ├── public/
+    └── src/
+        ├── server.ts
+        ├── maps/
+        ├── rooms/
+        │   ├── GameRoom.ts
+        │   └── GameState.ts
+        ├── routes/
+        │   ├── auth.ts
+        │   ├── sync-results.ts
+        │   └── test-tools.ts
+        ├── shared/
+        └── utils/
 ```
 
-## Prinsip Organisasi
+## 3. File Penting dan Kegunaannya
 
-1. **Domain-driven** — Kelompokkan komponen berdasarkan fitur (`auth`, `game`, `shop`),
-   bukan berdasarkan jenis (`components`, `containers`).
-2. **Co-locate state** — Zustand store untuk fitur besar diletakkan di `store/<feature>.js`
-   di samping komponennya.
-3. **Service layer** — Semua interaksi Firebase/Socket.io dibungkus di `services/`,
-   komponen tidak boleh import Firebase langsung.
-4. **Server terpisah** — Game logic yang sensitif (matchmaking, anti-cheat) ditaruh
-   di folder `server/` independen agar bisa di-scale terpisah.
+### Sisi Server (`server/`)
+* **`src/server.ts`**: Entry point utama server Express dan Colyseus.
+* **`src/rooms/GameRoom.ts`**: Mengelola logika room multiplayer dan komunikasi real-time.
+* **`src/rooms/GameState.ts`**: Mengelola skema *state* permainan real-time di server.
+* **`src/routes/auth.ts`**: Endpoint API untuk autentikasi.
+* **`src/routes/sync-results.ts`**: Endpoint API untuk sinkronisasi hasil permainan.
+* **`src/routes/test-tools.ts`**: Endpoint API untuk perkakas pengujian (test tools).
+* **`src/maps/`**: Menyimpan data map Tiled.
+* **`src/utils/`**: Berisi utility seperti `MapParser`, **Supabase**, **Redis**, dan *session store*.
+
+### Sisi Client (`client/`)
+* **`src/main.ts` & `src/game.ts`**: Inisialisasi utama dan konfigurasi game Phaser 3.
+* **`src/scenes/`**: Berisi scene permainan:
+  * `login/`: Scene login.
+  * `lobby/`: Scene lobby.
+  * `host/`: Scene host.
+  * `player/`: Scene player.
+  * `test/`: Scene test.
+* **`src/services/`**: Menangani komunikasi dan autentikasi ke server.
+* **`src/systems/`**: Menangani sistem gameplay.
+* **`src/ui/`**: Menangani UI overlay berbasis HTML/CSS.
+* **`src/utils/`**: Helper dan router utility.
+
+### Shared (`shared/`)
+* **`state.ts`**: Definisi state/type bersama untuk client dan server.
+* **`dummyQuestions.ts`**: Data pertanyaan dummy bersama.
+
+## 4. Pemetaan Komponen Sistem
+
+* **Phaser 3**: Menangani visual game 2D, rendering, scene, dan input pemain.
+* **HTML / CSS**: Menangani UI overlay di atas Phaser canvas.
+* **Colyseus**: Menangani real-time multiplayer dan sinkronisasi state.
+* **Express**: Menangani API endpoint pada server.
+* **Supabase**: Menangani database dan persistensi data di server.
+* **Redis**: Menangani caching dan session store di server.
+
+## 5. Hubungan Antar Bagian
+
+* **`shared` dengan `client` & `server`**: Package `shared` mengekspor tipe data dan skema state (`state.ts`) yang di-import oleh `client` maupun `server` agar sinkron.
+* **`client` ke `server` (Real-time)**: `client/src/services` terhubung ke `server/src/rooms/GameRoom.ts` (Colyseus) untuk sinkronisasi state dan multiplayer real-time.
+* **`client` ke `server` (API Routes)**: `client` melakukan request ke endpoint HTTP Express di `server/src/routes` (`auth.ts`, `sync-results.ts`).
+* **`server` ke Storage**: Routes dan Rooms pada server menggunakan `server/src/utils` untuk interaksi dengan **Supabase** dan **Redis**.
+
+## 6. Prinsip Organisasi Project Zigma
+
+1. **Workspaces**: Pemisahan logis menjadi `client`, `server`, dan `shared` dalam satu repository npm workspaces.
+2. **Pemisahan Visual Game dan UI Overlay**: **Phaser 3** menangani elemen visual 2D dan scene game, sedangkan **HTML/CSS** digunakan khusus untuk UI overlay.
+3. **Server-Authoritative Game Logic**: Game logic dan sinkronisasi state multiplayer dikelola utama oleh **Colyseus** di server (`GameRoom.ts` dan `GameState.ts`).
+4. **Shared Types and State**: State dan tipe data didefinisikan secara terpusat pada package `shared` untuk digunakan bersama oleh client dan server.

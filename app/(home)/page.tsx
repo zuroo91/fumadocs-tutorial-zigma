@@ -14,12 +14,14 @@ import {
   Database,
 } from 'lucide-react';
 
+
+
 const phases = [
   {
-    name: 'Mind Venture',
+    name: 'Tutorial Zigma',
     description:
-      'Bangun game kuis RPG multiplayer real-time lengkap dengan sistem combat, karakter, dan ranking.',
-    href: '/docs/games/mind-venture',
+      'Bangun game kuis multiplayer real-time lengkap dengan sistem room, gameplay, kuis, dan ranking.',
+    href: '/docs/tutorial',
     icon: Swords,
     color: 'from-violet-500/20 to-blue-500/20',
     border: 'border-violet-500/30 hover:border-violet-400',
@@ -82,30 +84,31 @@ const phases = [
 
 const quickLinks = [
   {
-    title: 'Mulai Sekarang',
-    description: 'Setup project dari nol dan install semua dependency yang dibutuhkan.',
-    href: '/docs/getting-started',
-    icon: Target,
-  },
-  {
-    title: 'Stack Teknologi',
-    description: 'React, Firebase, Socket.io, TailwindCSS - pilihan stack dan alasan teknisnya.',
-    href: '/docs/stack',
-    icon: Boxes,
-  },
-  {
     title: 'Struktur Project',
-    description: 'Layout folder standar untuk proyek game kuis RPG skala menengah.',
+    description: 'Arsitektur monorepo Zigma — client, server, dan shared beserta file-file kuncinya.',
     href: '/docs/structure',
     icon: FolderTree,
   },
   {
+    title: 'Stack Teknologi',
+    description: 'Vite, Phaser 3, Colyseus, Express, Supabase, Redis — pilihan stack dan alasan teknisnya.',
+    href: '/docs/stack',
+    icon: Boxes,
+  },
+  {
     title: 'Database Schema',
-    description: 'Skema Firestore untuk users, characters, questions, dan match history.',
+    description: 'Skema database Supabase untuk users, questions, rooms, dan match history.',
     href: '/docs/database',
     icon: Database,
   },
+  {
+    title: 'Deploy & Monitoring',
+    description: 'Panduan deploy server Colyseus + Express dan monitoring performa game.',
+    href: '/docs/deploy',
+    icon: Server,
+  },
 ];
+
 
 const stats = [
   { value: '10', label: 'Bab Tutorial', icon: Rocket },
@@ -121,7 +124,7 @@ export default function HomePage() {
       <section className="w-full max-w-5xl px-6 pt-16 pb-12 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-fd-border bg-fd-card px-4 py-1.5 text-sm text-fd-muted-foreground mb-6">
           <span className="size-2 rounded-full bg-green-500 animate-pulse" />
-          Build Guide - Mind Venture
+          Build Guide - Zigma
         </div>
 
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4">
@@ -144,7 +147,7 @@ export default function HomePage() {
 
         <div className="flex flex-wrap justify-center gap-3">
           <Link
-            href="/docs/games/mind-venture"
+            href="/docs/getting-started"
             className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white"
             style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}
           >
@@ -152,20 +155,20 @@ export default function HomePage() {
             Mulai Bangun Game
           </Link>
           <Link
-            href="/docs"
+            href="/docs/tutorial"
             className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-5 py-2.5 text-sm font-semibold hover:bg-fd-accent transition-colors"
           >
-            <FolderTree className="size-4" />
-            Lihat Semua Docs
+            <Target className="size-4" />
+            Lihat Tutorial
           </Link>
           <a
-            href="https://github.com/ubig/game-docs"
+            href="https://gameforsmart.com"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-5 py-2.5 text-sm font-semibold hover:bg-fd-accent transition-colors"
           >
-            <Trophy className="size-4" />
-            Lihat di GitHub
+            <Globe className="size-4" />
+            gameforsmart.com
           </a>
         </div>
       </section>
@@ -282,7 +285,7 @@ export default function HomePage() {
               Mulai dari Setup
             </Link>
             <Link
-            href="/docs/games/mind-venture"
+              href="/docs/tutorial"
               className="inline-flex items-center gap-2 rounded-lg border border-purple-400 text-white px-5 py-2.5 text-sm font-semibold hover:bg-purple-800/50 transition-colors"
             >
               <Swords className="size-4" />

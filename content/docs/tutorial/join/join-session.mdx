@@ -1,0 +1,223 @@
+---
+title: Join Session
+description: Alur dan cara kerja sistem Join Session.
+---
+
+Berikut adalah alur **Join Session** beserta kodenya secara langsung:
+
+---
+
+### 1. Validasi Input PIN 6-Digit & Autentikasi Pemain
+Sebelum melakukan koneksi jaringan, input kode room diperiksa apakah berupa 6 digit alfanumerik dan profil pemain yang sedang login dimuat dari penyimpanan lokal:
+
+```typescript title="client/src/scenes/lobby/page.ts"
+const roomCode = code?.trim().toUpperCase();
+if (!roomCode || roomCode.length !== 6) {
+    this.showJoinFieldError('roomcode', i18n.t('lobby.join_errors.invalid_code'));
+    return;
+}
+
+// Ambil profil akun pemain yang sedang login
+const profile = authService.getStoredProfile();
+if (!profile) {
+    this.showJoinError(i18n.t('lobby.join_errors.login_first'));
+    this.isJoining = false;
+    this.setBtnLoading(false);
+    return;
+}
+
+const userId = profile.id;
+const nickname = (nameOverride || profile.nickname || profile.fullname || 'Player').trim().slice(0, 30);
+```
+
+---
+
+### 2. Pencarian Room & Proteksi *Late Join*
+Client mencari ketersediaan room di server Colyseus berdasarkan metadata `roomCode`. Jika pertandingan sudah berjalan (`isStarted: true`), pemain baru ditolak untuk bergabung:
+
+```typescript title="client/src/scenes/lobby/page.ts"
+// Cari room aktif di Colyseus
+const rooms = await this.client.getAvailableRooms("game_room");
+const targetRoom = rooms.find(r => r.metadata && r.metadata.roomCode === roomCode);
+
+if (!targetRoom) {
+    this.showJoinFieldError('roomcode', i18n.t('lobby.join_errors.room_not_found'));
+    this.isJoining = false;
+    this.setBtnLoading(false);
+    return;
+}
+
+// Blokir jika permainan sudah dimulai
+if (targetRoom.metadata && targetRoom.metadata.isStarted) {
+    alert(i18n.t('lobby.join_errors.game_started'));
+    window.location.replace('/');
+    return;
+}
+```
+
+---
+
+### 3. Pre-Check Whitelist Kompetisi
+Jika room merupakan sesi kompetisi terproteksi, client mengecek apakah ID user ada di dalam daftar `allowed_user_ids` database Supabase:
+
+```typescript title="client/src/scenes/lobby/page.ts"
+const dbSessionId = targetRoom.metadata?.sessionId;
+
+if (dbSessionId && dbSessionId !== 'undefined' && dbSessionId !== 'null') {
+    const { data: sessionData } = await supabase
+        .from('game_sessions')
+        .select('allowed_user_ids')
+        .eq('id', dbSessionId)
+        .single();
+
+    const allowed = sessionData?.allowed_user_ids;
+    if (allowed && Array.isArray(allowed) && allowed.length > 0) {
+        const allowedNorm = allowed.map((id: any) => String(id).trim().toLowerCase());
+        const candidateIds = [profile.id, profile.auth_user_id]
+            .filter(Boolean)
+            .map((id: any) => String(id).trim().toLowerCase());
+
+        const isAuthorized = candidateIds.some(cid => allowedNorm.includes(cid));
+        if (!isAuthorized) {
+            this.showAccessDeniedModal();
+            this.isJoining = false;
+            this.setBtnLoading(false);
+            return;
+        }
+    }
+}
+```
+
+---
+
+### 4. Eksekusi Join & Penyimpanan Kredensial Sesi
+Client memuat preferensi karakter (`player_hair_id`), menggabungkan payload opsi join, menyambung ke room Colyseus via `joinById`, dan menyimpan token pemulihan (*reconnection token*):
+
+```typescript title="client/src/scenes/lobby/page.ts"
+const savedHairId = localStorage.getItem('player_hair_id');
+
+const joinOptions = {
+    name: nickname,
+    userId: userId,
+    profileId: profile.id,
+    authUserId: profile.auth_user_id || undefined,
+    avatarUrl: profile.avatar_url || "",
+    hairId: savedHairId ? parseInt(savedHairId) : undefined,
+    sessionId: "", // Fresh join
+    isHost: false
+};
+
+// Bergabung ke room Colyseus
+const room = await this.client.joinById(targetRoom.roomId, joinOptions);
+
+// Simpan identitas sesi ke localStorage & SessionStore
+localStorage.setItem('currentRoomId', room.id);
+SessionStore.set('currentSessionId', room.sessionId, 'player');
+SessionStore.set('currentReconnectionToken', room.reconnectionToken, 'player');
+SessionStore.set('isHost', 'false', 'player');
+localStorage.setItem('currentRoomCode', roomCode);
+
+// Pindah rute ke ruang tunggu pemain
+TransitionManager.transitionTo(() => {
+    Router.navigate(`/player/${roomCode}/waiting`);
+    this.startManager('PlayerWaitingRoomManager', { room, isHost: false });
+});
+```
+
+---
+
+### 5. Verifikasi Otoritatif di Sisi Server (`onAuth`)
+Server Colyseus menjalankan `onAuth` sebelum koneksi WebSocket diizinkan. Server memverifikasi token bearer (jika ada) dan memastikan pemain tidak melewati whitelist kompetisi:
+
+```typescript title="server/src/rooms/GameRoom.ts"
+async onAuth(client: Client, options: any, request?: import("http").IncomingMessage) {
+    const pinToQuery = this.state.roomCode || options.roomCode || this.roomId;
+    const authInfo = await gameSessionStore.getAuthInfoByPin(pinToQuery);
+
+    if (!authInfo) return true;
+
+    let candidateIds = [options.profileId, options.userId, options.authUserId]
+        .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+        .map((v) => v.trim().toLowerCase());
+
+    const allowedIds = Array.isArray(authInfo.allowed_user_ids)
+        ? authInfo.allowed_user_ids.map((id: any) => String(id).trim().toLowerCase())
+        : [];
+
+    const isHostClient = options.isHost === true || options.isHost === "true";
+
+    // Tolak pemain yang tidak terdaftar pada sesi kompetisi
+    if (allowedIds.length > 0 && !isHostClient) {
+        if (!candidateIds.some((id) => allowedIds.includes(id))) {
+            throw new Error("NOT_REGISTERED_COMPETITION");
+        }
+    }
+
+    return true;
+}
+```
+
+---
+
+### 6. Pengecekan *Late Join* & Spawn Karakter di Server (`onJoin`)
+Setelah lolos `onAuth`, server mengeksekusi `onJoin` untuk memasukkan pemain ke dalam state permainan, menentukan koordinat spawn dari map Tiled, serta mengalokasikan sub-room:
+
+```typescript title="server/src/rooms/GameRoom.ts"
+async onJoin(client: Client, options: any) {
+    const userId = options.userId;
+
+    // 1. Blokir pemain baru jika kuis sudah aktif
+    if (this.state.isGameStarted || this.state.countdown > 0) {
+        const isSessionReconnect = this.state.players.has(client.sessionId);
+        const isUserReconnect = Array.from(this.state.players.values()).some(p => p.userId === userId);
+        if (!isSessionReconnect && !isUserReconnect) {
+            throw new Error("GAME_STARTED");
+        }
+    }
+
+    // 2. Inisialisasi entitas Player baru
+    const player = new Player();
+    player.sessionId = client.sessionId;
+    player.userId = userId;
+    player.name = (options.name || "Player").substring(0, 20);
+    player.hairId = options.hairId !== undefined ? options.hairId : Math.floor(Math.random() * 7);
+
+    // 3. Tentukan Spawn Point dari Tiled Map
+    const mapData = MapParser.loadMapData(this.state.difficulty);
+    if (mapData && mapData.playerSpawns && mapData.playerSpawns.length > 0) {
+        let spawnIndex = mapData.playerSpawns.findIndex((_, i) => !this.usedSpawnIndices.has(i));
+        if (spawnIndex === -1) spawnIndex = Math.floor(Math.random() * mapData.playerSpawns.length);
+
+        this.usedSpawnIndices.add(spawnIndex);
+        const spawn = mapData.playerSpawns[spawnIndex];
+        player.x = spawn.x;
+        player.y = spawn.y;
+    }
+
+    // 4. Masukkan ke state sinkronisasi & simpan ke database
+    this.state.players.set(client.sessionId, player);
+
+    const participantEntry = this.buildParticipantEntry(player);
+    await this.enqueueParticipantWrite(async () => {
+        await this.upsertParticipantEntry(participantEntry);
+    });
+}
+```
+
+---
+
+### 7. Pemulihan Sesi Otomatis Saat Refresh (*Token Reconnect*)
+Jika koneksi internet pemain terputus atau pemain me-refresh halaman browser, client memulihkan koneksi menggunakan `reconnectionToken` tanpa kehilangan status permainan:
+
+```typescript title="client/src/utils/roomRestore.ts"
+// Jalur cepat: Token reconnect (bekerja meski room sudah locked)
+const token = SessionStore.get('currentReconnectionToken', role);
+if (token) {
+    try {
+        const restoredRoom = await client.reconnect(token);
+        return finalizeRoom(restoredRoom, role);
+    } catch (tokenErr) {
+        console.warn("[Restore] Token reconnect failed, falling back to joinById retries...");
+    }
+}
+```

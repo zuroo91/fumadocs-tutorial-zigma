@@ -1,19 +1,108 @@
 ---
 title: Sistem Karakter
-description: Warrior, Mage, Ranger, Healer — stats, skill, dan leveling.
+description: Kustomisasi karakter pemain berdasarkan model dasar Human dan gaya rambut (HAIR_OPTIONS).
 ---
 
 # Sistem Karakter
 
-Game ini punya 4 tipe karakter yang bisa dipilih pemain. Setiap karakter punya base
-stats, skill unik, dan elemen yang berlawanan satu sama lain.
+Karakter pemain yang dapat dimainkan (playable character) menggunakan satu model dasar Human (Manusia) dengan sistem kustomisasi visual bertingkat (layered sprites): Tubuh Dasar (Base Body) + Alat/Senjata (Tools) + Gaya Rambut (Hair).
+Pilihan kustomisasi karakter yang tersedia untuk pemain dibedakan berdasarkan gaya rambut (HAIR_OPTIONS):
 
-| Karakter | Tipe    | Skill Utama    | Elemen |
-| -------- | ------- | -------------- | ------ |
-| Warrior  | Tank    | Shield Bash    | Earth  |
-| Mage     | DPS     | Fireball       | Fire   |
-| Ranger   | Range   | Arrow Rain     | Wind   |
-| Healer   | Support | Healing Light  | Light  |
+| Nama Tampilan | Slug | Sprite IDLE / WALK |
+| --- | --- | --- |
+| Default (None) | `none` | Botak / Tanpa rambut tambahan |
+| Bowl Hair | `bowl-hair` | `bowlhair_idle` / `bowlhair_walk` |
+| Curly Hair | `curly-hair` | `curlyhair_idle` / `curlyhair_walk` |
+| Long Hair | `long-hair` | `longhair_idle` / `longhair_walk` |
+| Mop Hair | `mop-hair` | `mophair_idle` / `mophair_walk` |
+| Short Hair | `short-hair` | `shorthair_idle` / `shorthair_walk` |
+| Spikey Hair | `spikey-hair` | `spikeyhair_idle` / `spikeyhair_walk` |
 
-Lihat detail lengkap cara membangun sistem karakter di
-[**Studi Kasus: Sistem Karakter**](/docs/games/mind-venture/sistem-karakter).
+## Bagaimana Player Memilih & Mendapatkan Karakter?
+
+Semua variasi karakter/rambut terbuka secara gratis (*free selection*), tidak ada sistem gacha atau pembelian berbayar. Berikut adalah alur serta potongan kode implementasinya:
+
+### 1. Pemilihan di Waiting Room
+Di halaman tunggu pemain (`waitingroom/page.ts`), pemain dapat menekan tombol **"Choose Character"**. Tombol ini membuka pop-up `CharacterSelectPopup.ts` yang menampilkan grid pilihan gaya rambut serta preview animasi bergerak (*idle animation*) secara langsung.
+
+**File:** `client/src/scenes/player/[roomCode]/waitingroom/page.ts`
+
+```typescript
+// 1. Event listener tombol "Choose Character"
+const chooseCharBtn = document.getElementById('player-choose-char-btn');
+if (chooseCharBtn) {
+    chooseCharBtn.onclick = () => {
+        const myPlayer = this.room.state.players.get(this.mySessionId);
+        // Buka modal pop-up dengan hairId yang sedang aktif
+        this.characterPopup?.show(myPlayer?.hairId || 0);
+    };
+}
+
+// 2. Inisialisasi CharacterSelectPopup
+this.characterPopup = new CharacterSelectPopup(
+    HAIR_OPTIONS,
+    (hairId) => {
+        // Kirim update ke server Colyseus secara realtime
+        if (this.room) this.room.send("updateHair", { hairId });
+        
+        // Simpan preferensi pilihan ke localStorage
+        localStorage.setItem('player_hair_id', hairId.toString());
+    },
+    () => { /* callback saat popup ditutup */ }
+);
+```
+
+---
+
+### 2. Penyimpanan Lokal (*Local Persistence*) & Auto-Load saat Join
+Karakter yang dipilih disimpan ke `localStorage` browser dengan kunci `'player_hair_id'`. Ketika pemain masuk ke room atau bermain di sesi berikutnya, pilihan karakter tersebut langsung dimuat secara otomatis (`lobby/page.ts`).
+
+**File:** `client/src/scenes/lobby/page.ts`
+
+```typescript
+// Ambil hairId yang sebelumnya tersimpan di localStorage browser
+const savedHairId = localStorage.getItem('player_hair_id');
+
+// Sertakan hairId ke dalam opsi join room
+const joinOptions = {
+    name: nickname,
+    userId: userId,
+    profileId: profile.id,
+    authUserId: profile.auth_user_id || undefined,
+    avatarUrl: profile.avatar_url || "",
+    hairId: savedHairId ? parseInt(savedHairId) : undefined, // Dimuat otomatis
+    sessionId: "",
+    isHost: false
+};
+
+// Bergabung ke room Colyseus dengan opsi tersebut
+const room = await this.client.joinById(targetRoom.roomId, joinOptions);
+```
+
+---
+
+### 3. Sinkronisasi di Server Colyseus
+Klien mengirim pesan `updateHair` dengan payload `{ hairId }` ke server Colyseus (`GameRoom.ts`). Server memvalidasi ID (0–6), menetapkannya ke schema state `player.hairId`, dan menyiarkannya ke seluruh pemain lain di dalam room.
+
+**File:** `server/src/rooms/GameRoom.ts`
+
+```typescript
+// A. Saat pemain pertama kali bergabung (onJoin)
+player.hairId =
+    options.hairId !== undefined
+        ? options.hairId
+        : Math.floor(Math.random() * 7); // Random jika belum memilih (ID 0 - 6)
+
+// B. Handler pesan saat pemain mengganti karakter di waiting room (onMessage)
+this.onMessage("updateHair", (client, data) => {
+    const player = this.getPlayerByClient(client);
+    if (player && data.hairId !== undefined) {
+        // Update state room — otomatis disinkronkan ke semua client pemain
+        player.hairId = Number(data.hairId);
+
+        // Simpan pembaruan partisipan ke database
+        this.syncParticipantToGameSessions(client);
+    }
+});
+```
+

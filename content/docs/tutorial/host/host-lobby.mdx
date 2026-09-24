@@ -1,0 +1,128 @@
+---
+title: Host Lobby
+description: Alur dan cara kerja komponen Host Lobby.
+---
+
+**Host Lobby** dikelola oleh class **\`HostWaitingRoomScene\`** ([\`client/src/scenes/host/[roomCode]/lobby/page.ts\`](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/client/src/scenes/host/[roomCode]/lobby/page.ts)). Scene ini bertindak sebagai ruang kendali bagi host setelah room dibuat dan sebelum permainan dimulai.
+
+Berikut adalah alur cara kerja host lobby yang dipecah secara modular berdasarkan fiturnya:
+
+---
+
+### 1. Menampilkan PIN Room & QR Code Pemain
+Saat lobby dimuat, scene mendengarkan perubahan \`roomCode\` dari state Colyseus. PIN ditampilkan di layar, dan QR Code di-*generate* secara dinamis agar pemain mobile bisa langsung scan untuk bergabung:
+
+```typescript
+// Mendengarkan kode room dari server state
+this.room.state.listen("roomCode", (code: string) => {
+    if (this.roomCodeEl) this.roomCodeEl.innerText = code || '------';
+    this.updateQrCode(code);   // Generate QR Code untuk join cepat
+    this.updateJoinUrl(code);  // Update link invite
+});
+```
+
+---
+
+### 2. Sinkronisasi Daftar Pemain Real-Time
+Host lobby tidak melakukan polling HTTP, melainkan memanfaatkan event listener state Colyseus (\`onAdd\` dan \`onRemove\`). Setiap kali ada pemain baru yang join atau keluar, tampilan langsung di-update secara otomatis:
+
+```typescript
+setupStateListeners() {
+    // Pemain baru masuk room
+    this.room.state.players.onAdd((player: any) => {
+        this.updateAll(); // Update jumlah dan kartu pemain
+        player.listen("name", () => this.updateAll());
+        player.listen("hairId", () => this.updateAll()); // Update jika ganti rambut
+    });
+
+    // Pemain keluar / terputus
+    this.room.state.players.onRemove(() => this.updateAll());
+}
+```
+
+---
+
+### 3. Rendering Grid Pemain & Fitur Kick Player
+Di dalam fungsi \`updatePlayerGrid()\`, setiap pemain yang terhubung dirender dalam bentuk kartu avatar pixel art. Khusus bagi host, disediakan tombol **Kick (Silang Merah)** pada kartu pemain lain:
+
+```typescript
+// 1. Tampilkan tombol kick khusus untuk host
+let kickButtonHTML = '';
+if (this.isHost && !isMe) {
+    kickButtonHTML = \`
+        <button class="kick-btn absolute bg-red-500 rounded-full"
+            onclick="window.confirmKick('\${player.sessionId}', '\${player.name}')">
+            <span class="material-symbols-outlined">close</span>
+        </button>
+    \`;
+}
+
+// 2. Saat kick dikonfirmasi, kirim sinyal ke server Colyseus
+document.getElementById('confirm-kick')?.addEventListener('click', () => {
+    this.room.send("kickPlayer", { sessionId });
+});
+```
+
+> **Validasi Tombol Start:** Jika belum ada pemain yang bergabung (\`players.length === 0\`), tombol \`Start Game\` otomatis dinonaktifkan (\`disabled = true\`). Tombol baru aktif jika minimal ada 1 pemain.
+
+---
+
+### 4. Memulai Permainan & Countdown Sinkron
+Ketika host menekan tombol **Start Game**:
+1. Host mengirim pesan \`startGame\` ke server.
+2. Server mengunci room (\`lock()\`), mengatur \`isPreparing: true\`, lalu memulai countdown mundur 10 detik.
+3. Host lobby memutar SFX countdown dan menampilkan angka hitung mundur raksasa di layar.
+4. Saat countdown menyentuh angka 0 (\`"GO!"\`), host lobby otomatis berpindah ke **\`HostProgressScene\`** untuk memantau skor pemain.
+
+```typescript
+// A. Host menekan tombol Start Game
+handleStartGame() {
+    this.isGameStarting = true;
+    this.startBtn.disabled = true;
+    this.room.send("startGame"); // Beri tahu server Colyseus
+}
+
+// B. Sinkronisasi hitung mundur 10 detik dari server
+this.room.state.listen("countdown", (val: number) => {
+    if (val > 0) {
+        AudioManager.getInstance().playCountdownSFX();
+        TransitionManager.setCountdownText(val.toString());
+    } else if (val === 0) {
+        TransitionManager.setCountdownText("GO!");
+        setTimeout(() => {
+            // Pindah ke scene monitoring progress pertandingan
+            this.scene.start('HostProgressScene', { room: this.room });
+        }, 100);
+    }
+});
+```
+
+---
+
+### 5. Pembatalan Room & Tombol Keluar
+Jika host menekan tombol kembali/keluar, room tidak dibiarkan menggantung:
+1. Client mengirim sinyal \`manualPlayerLeave\` ke server.
+2. Menghapus sesi dari database Supabase (\`deleteSession(roomCode, 'host')\`).
+3. Membersihkan seluruh data sesi lokal di \`SessionStore\` & \`localStorage\` agar tidak terjadi *ghost reconnection*.
+
+```typescript
+async leaveRoom() {
+    this.isManuallyLeaving = true;
+    
+    // Kirim sinyal ke server
+    this.room.send("manualPlayerLeave");
+
+    // Hapus sesi game dari database Supabase
+    const roomCode = this.room.state.roomCode;
+    if (roomCode) {
+        deleteSession(roomCode, 'host');
+    }
+
+    // Bersihkan session storage host
+    SessionStore.clearGameSession('host');
+    localStorage.removeItem('lastGameOptions');
+
+    // Kembali ke halaman beranda
+    window.location.replace('/');
+}
+```

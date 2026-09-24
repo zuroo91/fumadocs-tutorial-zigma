@@ -1,0 +1,206 @@
+---
+title: Sistem Result
+description: Alur dan cara kerja sistem Player Result setelah kuis selesai.
+---
+
+Sistem **Player Result** (halaman hasil personal pemain setelah menyelesaikan kuis) dikelola oleh class **`ResultManager`** pada file [`client/src/scenes/player/[roomCode]/results/page.ts`](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/client/src/scenes/player/[roomCode]/results/page.ts).
+
+Halaman ini menampilkan kartu ringkasan skor dan pencapaian individu pemain secara interaktif dalam orientasi *portrait* di perangkat mobile/desktop.
+
+Berikut analisis arsitektur dan alur kerjanya berdasarkan kode sumber:
+
+---
+
+### 1. Inisialisasi & Preservasi State (`sessionStorage`)
+
+Saat pemain selesai menjawab kuis atau waktu habis, `ResultManager` membaca data peringkat (*leaderboardData*). Jika pemain me-refresh browser, data hasil tetap aman karena dicadangkan di `sessionStorage`:
+
+```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+start(data?: { room?: any; leaderboardData?: any[]; supabaseSessionId?: string }) {
+    document.title = "Result | Zigma";
+    // Paksa orientasi portrait di mobile
+    OrientationManager.requirePortrait(
+        i18n.t("player_result.portrait_req_title"),
+        i18n.t("player_result.portrait_req_desc")
+    );
+
+    let registryRankings = data?.leaderboardData || [];
+    this.room = data?.room;
+    
+    // Simpan data ke sessionStorage untuk mencegah data hilang saat refresh halaman
+    if (registryRankings.length > 0) {
+        this.rankings = registryRankings;
+        this.mySessionId = this.room?.sessionId || "";
+        this.isGameEnded = this.room?.state?.isGameOver === true;
+
+        sessionStorage.setItem("playerResultState", JSON.stringify({
+            rankings: this.rankings,
+            mySessionId: this.mySessionId,
+            roomId: this.roomId,
+            supabaseSessionId: this.supabaseSessionId,
+            questionTotal: finalTotal,
+            isGameEnded: this.isGameEnded
+        }));
+    } else {
+        // Fallback: pulihkan state dari sessionStorage
+        const savedState = sessionStorage.getItem("playerResultState");
+        if (savedState) {
+            const parsed = JSON.parse(savedState);
+            this.rankings = parsed.rankings;
+            this.mySessionId = parsed.mySessionId;
+            this.isGameEnded = parsed.isGameEnded === true;
+        }
+    }
+}
+```
+
+---
+
+### 2. Identifikasi Pemain & Ekstraksi Data Hasil
+
+Sistem mencocokkan `mySessionId` pemain dengan array `rankings` untuk mengambil metrik pencapaian (Rank, Score, Benar/Salah, Durasi):
+
+```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+private renderIndividualResult() {
+    const roomCode = this.room?.state?.roomCode || localStorage.getItem('currentRoomCode') || '';
+    Router.navigate(`/player/${roomCode}/result`);
+
+    // Cari data milik pemain ini di antara seluruh peserta
+    const myEntry = this.rankings.find((p) => p.sessionId === this.mySessionId) || this.rankings[0];
+    if (!myEntry) return;
+
+    // Format durasi pengerjaan ke format mm:ss
+    const formatTime = (ms: number) => {
+        const totalSeconds = Math.floor(ms / 1000);
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    };
+    
+    // Ambil inisial nama jika avatar gambar tidak tersedia
+    const getInitials = (name: string) => {
+        const cleanName = (name || "?").trim();
+        return cleanName.length <= 1 ? cleanName.toUpperCase() : (cleanName[0].toUpperCase() + cleanName[1].toLowerCase());
+    };
+}
+```
+
+---
+
+### 3. Rendering Kartu Hasil (Result Card) & 4 Stat Box
+
+Data ditampilkan dalam kartu visual bergaya retro pixelated dengan 4 metrik utama:
+1. **Rank**: Peringkat pemain (`#1`, `#2`, dst.)
+2. **Score**: Skor akhir (maksimal 100)
+3. **Correct**: Jumlah jawaban benar terhadap total soal (`correctAnswers / questionTotal`)
+4. **Time**: Total waktu yang dihabiskan untuk menyelesaikan kuis
+
+```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+<div class="result-card pointer-events-auto">
+    <!-- Avatar Pemain / Fallback Inisial -->
+    <div class="result-avatar-container" style="background: #336B23; color: white;">
+        ${myEntry.avatarUrl
+            ? `<img src="${upscaleAvatarUrl(myEntry.avatarUrl)}" class="result-avatar-img" />`
+            : `<div class="initial-fallback text-6xl">${getInitials(myEntry.name)}</div>`
+        }
+    </div>
+    
+    <div class="result-name" id="player-result-name">${myEntry.name}</div>
+    
+    <!-- 4 Kotak Statistik -->
+    <div class="result-stats-row">
+        <div class="stat-box">
+            <span class="material-symbols-outlined stat-icon">military_tech</span>
+            <div class="stat-value">#${myEntry.rank}</div>
+            <div class="stat-label">${i18n.t("player_result.rank")}</div>
+        </div>
+        <div class="stat-box">
+            <span class="material-symbols-outlined stat-icon">workspace_premium</span>
+            <div class="stat-value">${Math.min(100, Math.round(myEntry.score))}</div>
+            <div class="stat-label">${i18n.t("player_result.score")}</div>
+        </div>
+        <div class="stat-box">
+            <span class="material-symbols-outlined stat-icon">task_alt</span>
+            <div class="stat-value">${myEntry.correctAnswers}/${questionTotal}</div>
+            <div class="stat-label">${i18n.t("player_result.correct")}</div>
+        </div>
+        <div class="stat-box">
+            <span class="material-symbols-outlined stat-icon">schedule</span>
+            <div class="stat-value">${formatTime(myEntry.duration)}</div>
+            <div class="stat-label">${i18n.t("player_result.time")}</div>
+        </div>
+    </div>
+</div>
+```
+
+---
+
+### 4. Sinkronisasi Real-time dengan Server Colyseus
+
+Ketika pemain sudah di halaman result tetapi room kuis secara keseluruhan baru berakhir (misal karena host klik End Game atau timer habis), Colyseus mengirim pesan `gameEnded`:
+
+```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+this.room.onMessage("gameEnded", (msgData: { rankings: any[] }) => {
+    this.rankings = msgData.rankings;
+    this.isGameEnded = true; // Buka kunci tombol Statistics
+
+    sessionStorage.setItem("playerResultState", JSON.stringify({
+        rankings: this.rankings,
+        mySessionId: this.mySessionId,
+        roomId: this.roomId,
+        supabaseSessionId: this.supabaseSessionId,
+        isGameEnded: true,
+    }));
+
+    // Render ulang kartu dengan peringkat final
+    this.renderIndividualResult();
+    
+    // Sinkronkan data hasil ke database utama (Supabase)
+    this.triggerSyncResults();
+});
+
+// Jika Host menekan "Play Again" / restart game
+this.room.onMessage("gameRestarted", (msgData: { roomCode: string }) => {
+    TransitionManager.close(() => {
+        this.cleanup();
+        Router.navigate(`/player/${msgData.roomCode}/waiting`);
+        import('../../../lobby/page').then((m) => new m.LobbyManager().init());
+    });
+});
+```
+
+---
+
+### 5. Tombol Aksi: Home & Statistik Eksternal
+
+Terdapat dua tombol navigasi di bagian bawah (footer):
+1. **Home (`#lb-home-btn`)**: Mengirim sinyal `manualPlayerLeave` ke server, membersihkan session, dan kembali ke halaman utama `/`.
+2. **Stats (`#lb-stats-btn`)**: Terkunci (*disabled*) sampai seluruh sesi kuis selesai (`isGameEnded = true`). Ketika aktif, tombol ini membuka statistik detail di platform GameForSmart.
+
+```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+// 1. Tombol Keluar (Home)
+const attachHomeHandler = (btn: HTMLElement | null) => {
+    btn.onclick = () => {
+        if (this.room) {
+            try { this.room.send("manualPlayerLeave"); } catch (e) {}
+            this.room.leave(true);
+        }
+        TransitionManager.transitionTo(() => {
+            this.cleanup();
+            SessionStore.clearAll();
+            window.location.replace("/");
+        });
+    };
+};
+
+// 2. Tombol Buka Statistik
+private openStats() {
+    if (!this.isGameEnded) return; // Mencegah dibuka sebelum kuis benar-benar berakhir
+    const sid = this.supabaseSessionId || localStorage.getItem('supabaseSessionId') || '';
+    
+    openGameForSmartStats(
+        this.room || { metadata: { sessionId: sid } },
+        () => alert(i18n.t("player_result.no_session"))
+    );
+}
+```

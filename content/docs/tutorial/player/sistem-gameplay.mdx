@@ -1,0 +1,228 @@
+---
+title: Sistem Gameplay
+description: Mekanik kontrol pergerakan pemain, deteksi rintangan, serangan monster, peti harta karun, dan sinkronisasi arena real-time.
+---
+
+# Sistem Gameplay
+
+Di luar mekanisme menjawab kuis, Zigma mengusung genre **2D Action-Adventure/RPG eksplorasi real-time**. Pemain bergerak di dalam peta tiled map, berinteraksi dengan rintangan, membuka peti harta karun, serta mencari dan menyerang monster musuh untuk memicu tantangan kuis.
+
+Logika permainan dijalankan menggunakan **Phaser 3** pada sisi client dan disinkronkan secara real-time melalui room state **Colyseus** di server.
+
+---
+
+## 1. Sistem Kontrol & Pergerakan Pemain
+
+Pemain dapat mengendalikan karakter melalui 3 skema kontrol responsif:
+- **Keyboard (Desktop):** Tombol `W`, `A`, `S`, `D` atau tombol panah arah.
+- **Virtual Joystick (Mobile):** D-Pad / Analog virtual sentuh via `controls.getNav()`.
+- **Click / Tap-to-Move:** Mengetuk titik mana pun pada map untuk membuat karakter berjalan otomatis ke koordinat tujuan (`clickTarget`).
+
+### Parameter Kecepatan (*Speed*)
+- **Kecepatan Dasar:** `130 px/detik`.
+- **Buff Speed Boost:** Kecepatan meningkat 50% menjadi `195 px/detik` saat mengambil buff dari peti harta karun.
+
+```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+const myPlayerState = this.room.state.players.get(this.room.sessionId);
+let speed = 130;
+if (myPlayerState && myPlayerState.hasSpeedBoost) {
+    speed *= 1.5; // 50% peningkatan kecepatan gerak
+}
+
+const velocity = { x: 0, y: 0 };
+const inputPayload = { left: false, right: false, up: false, down: false };
+
+// 1. Input Keyboard & Virtual Joystick
+if (!isQuizOpen && !this.isAttacking && !isMinimapOpen) {
+    const nav = this.controls.getNav();
+    if (this.cursors.left.isDown || this.input.keyboard?.addKey('A').isDown || nav.left) inputPayload.left = true;
+    else if (this.cursors.right.isDown || this.input.keyboard?.addKey('D').isDown || nav.right) inputPayload.right = true;
+    if (this.cursors.up.isDown || this.input.keyboard?.addKey('W').isDown || nav.up) inputPayload.up = true;
+    else if (this.cursors.down.isDown || this.input.keyboard?.addKey('S').isDown || nav.down) inputPayload.down = true;
+}
+
+// 2. Click-to-Move / Tap-to-Move
+const hasKeyboardInput = inputPayload.left || inputPayload.right || inputPayload.up || inputPayload.down;
+if (!hasKeyboardInput && this.clickTarget && !isQuizOpen && !this.isAttacking) {
+    const dx = this.clickTarget.x - this.currentPlayer.x;
+    const dy = this.clickTarget.y - this.currentPlayer.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 6) {
+        velocity.x = dx / dist;
+        velocity.y = dy / dist;
+    } else {
+        this.clickTarget = null; // Tiba di lokasi target
+    }
+}
+```
+
+---
+
+## 2. Deteksi Rintangan & Luncuran Dinding (*Barrier Wall-Sliding*)
+
+Rintangan peta dibaca langsung dari data layer objek Tiled map (berupa poligon, elips, atau persegi panjang). 
+
+Agar pergerakan pemain tetap terasa luwes, sistem menggunakan algoritma **per-axis wall sliding**: jika gerakan penuh terhalang, sistem menguji pergerakan sumbu `X` dan sumbu `Y` secara terpisah sehingga pemain tetap bisa meluncur menyusuri tepi dinding tanpa tersendat.
+
+```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+// Uji pergerakan penuh
+if (!this.isInsideBarrier(newX, newY)) {
+    this.currentPlayer.x = newX;
+    this.currentPlayer.y = newY;
+} else {
+    // Coba pergeseran per sumbu secara independen
+    const canMoveX = !this.isInsideBarrier(newX, prevY);
+    const canMoveY = !this.isInsideBarrier(prevX, newY);
+
+    if (canMoveX) {
+        this.currentPlayer.x = newX;
+        const slideY = prevY + (velocity.y * speed * (delta / 1000) * 0.5);
+        if (!this.isInsideBarrier(this.currentPlayer.x, slideY)) this.currentPlayer.y = slideY;
+    } else if (canMoveY) {
+        this.currentPlayer.y = newY;
+        const slideX = prevX + (velocity.x * speed * (delta / 1000) * 0.5);
+        if (!this.isInsideBarrier(slideX, this.currentPlayer.y)) this.currentPlayer.x = slideX;
+    }
+}
+```
+
+---
+
+## 3. Sistem Tempur & Hitbox Serangan (*Combat Engagement*)
+
+Pemain harus melancarkan tebasan senjata ke monster musuh untuk memicu pertempuran soal kuis:
+
+- **Manual Attack:** Tombol `SPACE` (Desktop) atau Tombol Pedang di layar (Mobile).
+- **Auto-Attack:** Saat pemain berjalan menggunakan mode *tap-to-move* dan mendekati monster dalam radius 50px, serangan akan otomatis dilepaskan.
+- **Kalkulasi Hitbox Arah:** Hitbox diaktifkan pada 200ms setelah animasi tebasan dimulai. Hitbox memvalidasi jarak maksimal 50px dan sudut toleransi 60° (`Math.PI / 3`) searah hadap karakter (`flipX`).
+
+```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+performAttackHitbox(isLeft: boolean) {
+    const range = 50;
+    const angleTolerance = Math.PI / 3;
+
+    Object.keys(this.enemyEntities).forEach(id => {
+        const enemySprite = this.enemyEntities[id];
+        const enemyState = this.room.state.enemies.get(id);
+
+        if (enemySprite && enemyState && enemyState.isAlive) {
+            const dist = Phaser.Math.Distance.Between(this.currentPlayer.x, this.currentPlayer.y, enemySprite.x, enemySprite.y);
+            if (dist <= range) {
+                const angleToEnemy = Phaser.Math.Angle.Between(this.currentPlayer.x, this.currentPlayer.y, enemySprite.x, enemySprite.y);
+                const facingAngle = isLeft ? Math.PI : 0;
+                let diff = Phaser.Math.Angle.Wrap(angleToEnemy - facingAngle);
+
+                // Musuh berada di dalam kerucut serang depan karakter
+                if (Math.abs(diff) <= angleTolerance) {
+                    this.handleEnemyInteraction(id);
+                }
+            }
+        }
+    });
+}
+```
+
+Saat serangan mengenai musuh, client mengirim sinyal `engageEnemy` ke server:
+```typescript
+this.room.send("engageEnemy", { enemyId: enemyId });
+```
+
+---
+
+## 4. Sistem Peti Harta Karun (*Chest & Buff System*)
+
+Peti harta karun ditempatkan di beberapa titik strategis map permainan. Pemain yang mendekati peti dalam radius 50px dapat mengambil manfaatnya:
+
+1. **Speed Boost:** Memberikan dorongan kecepatan +50% selama 5 detik.
+2. **Peluang Soal Pemulihan (*Retry Chest*):** Memberikan kuis tambahan untuk mengembalikan skor jika ada jawaban yang salah sebelumnya.
+3. **Mekanisme Respawn:** Setelah diklaim, peti akan hilang sementara dan muncul kembali (*respawn*) setelah jeda 25–35 detik.
+
+### Implementasi Client
+```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+handleChestInteraction(chestIndex: number) {
+    const chest = this.room.state.chests[chestIndex];
+    const myPlayer = this.room.state.players.get(this.room.sessionId);
+    if (!chest || !myPlayer) return;
+
+    const chestContainer = this.chestContainers[chestIndex];
+    const dist = Phaser.Math.Distance.Between(this.currentPlayer.x, this.currentPlayer.y, chestContainer.x, chestContainer.y);
+
+    if (dist > 50 || myPlayer.hasSpeedBoost || chest.isCollected) return;
+
+    this.room.send('collectChest', { chestIndex });
+}
+```
+
+### Penanganan Server
+```typescript title="server/src/rooms/GameRoom.ts"
+this.onMessage("collectChest", (client, data) => {
+    const player = this.getPlayerByClient(client);
+    const chest = this.state.chests[data.chestIndex];
+
+    if (player && chest && !chest.isCollected && !player.hasSpeedBoost) {
+        chest.isCollected = true;
+        chest.collectedBy = client.sessionId;
+        player.hasSpeedBoost = true;
+
+        client.send("speedBoostActivated");
+
+        // Buff berakhir setelah 5 detik
+        this.clock.setTimeout(() => {
+            player.hasSpeedBoost = false;
+            client.send("speedBoostDeactivated");
+        }, 5000);
+
+        // Respawn peti setelah ~30 detik
+        const respawnDelay = 25000 + Math.random() * 10000;
+        this.clock.setTimeout(() => {
+            this.respawnChest(chest);
+        }, respawnDelay);
+    }
+});
+```
+
+---
+
+## 5. Navigasi Arena: Kompas Target & Minimap
+
+Peta permainan yang luas dilengkapi dengan fitur bantuan navigasi:
+
+- **Kompas Musuh Real-Time:** Menghitung sudut koordinat posisi pemain terhadap monster aktif terdekat setiap frame dan memutar ikon jarum kompas di HUD.
+- **Minimap Interaktif:** Menekan tombol `M` atau ikon map membuka tampilan minimap untuk meninjau sebaran seluruh pemain dan monster.
+
+```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+if (nearestId) {
+    const enemySprite = this.enemyEntities[nearestId];
+    const angle = Phaser.Math.Angle.Between(
+        this.currentPlayer.x, this.currentPlayer.y,
+        enemySprite.x, enemySprite.y
+    );
+    if (uiScene) uiScene.updateCompass(angle); // Putar jarum penunjuk arah
+}
+```
+
+---
+
+## 6. Efek Kamera Dinamis (*Cinematic Follow & Pan-Zoom*)
+
+Kamera permainan menyesuaikan kondisi aksi secara dinamis:
+- **Eksplorasi Normal:** Kamera mengunci posisi pemain dengan interpolasi halus (`cameras.main.startFollow(..., 0.2, 0.2)`).
+- **Pertemuan Musuh / Buka Peti:** Kamera melepaskan kuncian, bergeser (*pan*) fokus ke koordinat objek target, lalu melakukan zoom besar (**`zoomTo(3.5)`**) selama 1 detik untuk memberikan efek dramatis.
+
+```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+startCombatCamera(targetX: number, targetY: number) {
+    if (this.isZooming) return;
+    this.isZooming = true;
+    this.cameras.main.stopFollow();
+    this.cameras.main.pan(targetX, targetY, 800, 'Power2');
+    this.cameras.main.zoomTo(3.5, 1000, 'Power2');
+}
+```
+
+---
+
+## 7. Sinkronisasi Real-Time & Rekonsiliasi Server
+
+1. **Throttled Network Sync:** Koordinat posisi pemain lokal dikirim ke server Colyseus (`movePlayer`) dengan batasan interval waktu `networkSendRate` (~50ms) agar menghemat bandwidth.
+2. **Interpolasi Pemain Lain:** Gerakan entitas pemain lain di-lerp sebesar `0.25` per frame (`entity.x += (targetX - entity.x) * 0.25`) agar terlihat mulus.
+3. **Rekonsiliasi Posisi Lokal:** Jika terjadi lonjakan latensi (*lag spike*) sehingga posisi pemain di client bergeser jauh dari state otoriter server (>300px), sistem akan otomatis melakukan snap ke posisi server untuk mencegah desinkronisasi fatal.

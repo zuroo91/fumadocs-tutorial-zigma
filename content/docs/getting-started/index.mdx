@@ -8,7 +8,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 # Mulai Sekarang
 
-Selamat datang di build guide **Mind Venture**! Di bagian ini kamu akan
+Selamat datang di build guide **Zigma**! Di bagian ini kamu akan
 mempersiapkan environment dan project skeleton untuk mulai membangun game kuis RPG
 multiplayer.
 
@@ -17,9 +17,19 @@ multiplayer.
   lengkap dengan multiplayer real-time.
 </Callout>
 
+## Gambaran  Umum Zigma & Cara Kerja
+
+Zigma adalah game *Educational 2D Top-Down Multiplayer Quiz Arcade RPG* berbasis Web. Game ini menggabungkan 
+mekanisme aksi 2D (avatar, musuh berpatroli/melarikan diri, chest bonus) dengan kuis edukatif.
+
+- **Konsep**: Host membuat room kuis dan menentukan aturan. Player bergabung menggunakan kode unik (roomCode).
+- **Cara Kerja**: Player mengontrol avatar 2D untuk mengejar musuh (skeleton/goblin) yang membawa kuis. Saat berinteraksi, 
+  modal kuis muncul. Menjawab dengan benar mengalahkan musuh, memberikan poin, dan memperbarui leaderboard real-time.
+
+
 ## Prasyarat
 
-Pastikan tools berikut sudah terpasang di mesin kamu:
+Pastikan tools berikut sudah terpasang di *devices* kamu:
 
 - **Node.js** versi LTS (≥ 18) — [download](https://nodejs.org/)
 - **Git** untuk version control
@@ -30,7 +40,7 @@ Pastikan tools berikut sudah terpasang di mesin kamu:
 
 ```bash
 # 1. Buat project baru
-mkdir mind-venture-game && cd mind-venture-game
+mkdir nama project kamu && cd nama project kamu
 npm init -y
 
 # 2. Install dependencies utama
@@ -45,56 +55,41 @@ npm install -D vite @vitejs/plugin-react
 
 ## Struktur Project
 
-```
-mind-venture-game/
-├── public/
-│   ├── assets/
-│   │   ├── characters/
-│   │   ├── backgrounds/
-│   │   └── ui/
-│   └── index.html
-├── src/
-│   ├── components/
-│   │   ├── auth/
-│   │   │   ├── Login.jsx
-│   │   │   ├── Register.jsx
-│   │   │   └── AuthForm.jsx
-│   │   ├── home/
-│   │   │   ├── Homepage.jsx
-│   │   │   ├── Profile.jsx
-│   │   │   └── Leaderboard.jsx
-│   │   ├── game/
-│   │   │   ├── CharacterSelect.jsx
-│   │   │   ├── BattleArena.jsx
-│   │   │   ├── QuizPanel.jsx
-│   │   │   └── CombatSystem.jsx
-│   │   ├── shop/
-│   │   │   ├── Shop.jsx
-│   │   │   └── Inventory.jsx
-│   │   └── common/
-│   │       ├── Navbar.jsx
-│   │       └── Loading.jsx
-│   ├── pages/
-│   │   ├── LoginPage.jsx
-│   │   ├── RegisterPage.jsx
-│   │   ├── HomePage.jsx
-│   │   ├── GamePage.jsx
-│   │   └── ProfilePage.jsx
-│   ├── hooks/
-│   │   ├── useAuth.js
-│   │   └── useGame.js
-│   ├── services/
-│   │   ├── firebase.js
-│   │   ├── authService.js
-│   │   └── gameService.js
-│   ├── context/
-│   │   └── AuthContext.jsx
-│   ├── styles/
-│   │   └── global.css
-│   ├── App.jsx
-│   └── main.jsx
-├── package.json
-└── vite.config.js
+```text
+MultiplayerGameQuiz/
+├── package.json                         # Config root monorepo & script utama
+├── shared/
+│   └── state.ts                         # Definisi schema Colyseus (GameState, Player, Enemy, Chest, etc.)
+├── server/
+│   ├── package.json                     # Dependency server (Colyseus, Express, Redis, Supabase)
+│   └── src/
+│       ├── server.ts                    # Entrypoint server Express + Colyseus WebSocket + Redis setup
+│       ├── rooms/
+│       │   ├── GameRoom.ts              # Logika room utama, lifecycle, handler pesan WS, & AI musuh
+│       │   └── GameState.ts             # Re-export schema dari shared/state.ts
+│       ├── utils/
+│       │   ├── MapParser.ts             # Parser tilemap Tiled untuk spawn zone & rintangan map
+│       │   └── supabase.ts              # Integrasi client Supabase backend
+│       └── routes/
+│           └── sync-results.ts          # API Endpoint penyimpanan hasil kuis
+└── client/
+    ├── package.json                     # Dependency client (Phaser, Colyseus.js, Vite, Tailwind)
+    ├── bot.html                         # Interface HTML simulator bot test
+    └── src/
+        ├── main.ts                      # Entrypoint client, router autentikasi, & UI DOM bootstrap
+        ├── game.ts                      # Konfigurasi Phaser 3 Game Instance & registrasi Scene
+        ├── services/
+        │   └── room/RoomService.ts      # Client service penghubung Colyseus WebSocket
+        └── scenes/
+            ├── host/
+            │   └── [roomCode]/
+            │       ├── lobby/page.ts    # Scene waiting room host
+            │       └── progress/page.ts # Scene pantauan progres siswa secara real-time
+            ├── player/
+            │   └── [roomCode]/
+            │       └── game/page.ts     # Scene gameplay 2D utama player (render map & sprite)
+            └── test/
+                └── BotSimulatorManager.ts # Simulator bot load testing
 ```
 
 Lanjut ke [Stack Teknologi](/docs/stack) untuk melihat pilihan stack dan alasannya,
