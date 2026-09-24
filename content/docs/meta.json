@@ -2,14 +2,14 @@
   "title": "Game Docs",
   "root": true,
   "pages": [
-    "getting-started",
-    "stack",
-    "structure",
-    "database",
-    "karakter",
-    "combat",
-    "multiplayer",
-    "deploy",
+    "...getting-started",
+    "...stack",
+    "...structure",
+    "...database",
+    "...karakter",
+    "...combat",
+    "...multiplayer",
+    "...deploy",
     "tutorial"
   ]
 }
