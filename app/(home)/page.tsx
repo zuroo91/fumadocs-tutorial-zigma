@@ -109,14 +109,6 @@ const quickLinks = [
   },
 ];
 
-
-const stats = [
-  { value: '10', label: 'Bab Tutorial', icon: Rocket },
-  { value: '30+', label: 'Code Snippet', icon: Boxes },
-  { value: '6', label: 'Kategori Kuis', icon: Shield },
-  { value: '∞', label: 'Match Multiplayer', icon: Globe },
-];
-
 export default function HomePage() {
   return (
     <main className="flex flex-col items-center">
@@ -170,25 +162,6 @@ export default function HomePage() {
             <Globe className="size-4" />
             gameforsmart.com
           </a>
-        </div>
-      </section>
-
-      {/* Stats Bar */}
-      <section className="w-full max-w-5xl px-6 mb-12">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.label}
-                className="rounded-xl border border-fd-border bg-fd-card p-4 text-center"
-              >
-                <Icon className="size-6 mx-auto mb-2 text-fd-primary" />
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="text-xs text-fd-muted-foreground mt-0.5">{stat.label}</div>
-              </div>
-            );
-          })}
         </div>
       </section>
 
