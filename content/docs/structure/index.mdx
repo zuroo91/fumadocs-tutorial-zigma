@@ -107,13 +107,13 @@ MultiplayerGameQuiz/
 ## 5. Hubungan Antar Bagian
 
 * **`shared` dengan `client` & `server`**: Package `shared` mengekspor tipe data dan skema state (`state.ts`) yang di-import oleh `client` maupun `server` agar sinkron.
-* **`client` ke `server` (Real-time)**: `client/src/services` terhubung ke `server/src/rooms/GameRoom.ts` (Colyseus) untuk sinkronisasi state dan multiplayer real-time.
-* **`client` ke `server` (API Routes)**: `client` melakukan request ke endpoint HTTP Express di `server/src/routes` (`auth.ts`, `sync-results.ts`).
-* **`server` ke Storage**: Routes dan Rooms pada server menggunakan `server/src/utils` untuk interaksi dengan **Supabase** dan **Redis**.
+* **`client` ke `server` (Real-time)**: Service pada client terhubung ke modul `GameRoom` (Colyseus) di server untuk sinkronisasi state dan multiplayer real-time.
+* **`client` ke `server` (API Routes)**: Client melakukan request ke endpoint HTTP Express di server (`auth`, `sync-results`).
+* **`server` ke Storage**: Routes dan Rooms pada server menggunakan utilitas internal untuk interaksi dengan **Supabase** dan **Redis**.
 
 ## 6. Prinsip Organisasi Project Zigma
 
 1. **Workspaces**: Pemisahan logis menjadi `client`, `server`, dan `shared` dalam satu repository npm workspaces.
 2. **Pemisahan Visual Game dan UI Overlay**: **Phaser 3** menangani elemen visual 2D dan scene game, sedangkan **HTML/CSS** digunakan khusus untuk UI overlay.
-3. **Server-Authoritative Game Logic**: Game logic dan sinkronisasi state multiplayer dikelola utama oleh **Colyseus** di server (`GameRoom.ts` dan `GameState.ts`).
+3. **Server-Authoritative Game Logic**: Game logic dan sinkronisasi state multiplayer dikelola utama oleh **Colyseus** di server (`GameRoom` dan `GameState`).
 4. **Shared Types and State**: State dan tipe data didefinisikan secara terpusat pada package `shared` untuk digunakan bersama oleh client dan server.

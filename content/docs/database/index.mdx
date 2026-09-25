@@ -1,101 +1,133 @@
 ---
 title: Database Schema
-description: Skema Firestore untuk users, characters, dan match history.
+description: Skema database Supabase PostgreSQL untuk quizzes, game_sessions, dan profiles di Zigma.
 ---
 
 # Database Schema
 
-Skema Firestore untuk game. Semua dokumen diakses dari client dengan rules
-yang membatasi akses berdasarkan `auth.uid`.
+Zigma menggunakan **Supabase (PostgreSQL)** sebagai pusat data utama. Seluruh pembacaan data soal kuis dan penyimpanan hasil akhir permainan dilakukan secara terstruktur melalui database relasional.
 
-## Collection: `users`
+Terdapat dua koneksi Supabase dalam ekosistem Zigma:
+1. **Supabase Utama (Main Data Center)**: Menyimpan master data kuis (`quizzes`), profil akun pengguna GameForSmart (`profiles`), dan sesi permainan utama (`game_sessions`).
+2. **Supabase B**: Digunakan untuk replikasi sesi live ke platform GameForSmart melalui schema `zigma`.
 
-```js
-{
-  uid: "string",
-  email: "string",
-  displayName: "string",
-  avatar: "url",
-  level: 1,
-  xp: 0,
-  gold: 1000,
-  gems: 100,
-  characters: ["warrior"],
-  inventory: [],
-  achievements: [],
-  rank: "Bronze",
-  createdAt: "timestamp"
-}
+---
+
+## 1. Tabel: `quizzes`
+
+Menyimpan master data kuis yang dibuat oleh guru, host, atau admin platform GameForSmart.
+
+```sql
+CREATE TABLE public.quizzes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(100) DEFAULT 'umum',
+    language VARCHAR(10) DEFAULT 'id',
+    description TEXT,
+    questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
 ```
 
-## Collection: `characters`
+### Struktur Objek JSON `questions`:
+Soal-soal kuis disimpan dalam kolom `questions` berbentuk array JSON:
 
-```js
-{
-  id: "warrior",
-  name: "Warrior",
-  type: "Tank",
-  baseStats: {
-    hp: 100,
-    attack: 15,
-    defense: 25,
-    speed: 10
-  },
-  skills: [
-    { id: "shield_bash", name: "Shield Bash", damage: 20, cooldown: 2 },
-    { id: "block", name: "Block", effect: "reduce_damage_50%", cooldown: 3 }
-  ]
-}
-```
-
-## Collection: `questions`
-
-```js
-{
-  id: "auto_id",
-  category: "sains",
-  question: "Apa Rumus air?",
-  options: ["H2O", "CO2", "NaCl", "O2"],
-  correctAnswer: 0,
-  difficulty: "easy",
-  xpReward: 10
-}
-```
-
-## Collection: `matches`
-
-```js
-{
-  id: "match_abc",
-  players: {
-    "uid_1": { character: "warrior", hp: 100, score: 0 },
-    "uid_2": { character: "mage", hp: 100, score: 0 }
-  },
-  questions: ["q1", "q2", "q3"],
-  status: "ongoing",
-  winner: null,
-  startedAt: "timestamp",
-  endedAt: null
-}
-```
-
-## Security Rules (Ringkas)
-
-```js
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == uid;
-    }
-    match /questions/{qid} {
-      allow read: if request.auth != null;
-      allow write: if false; // admin only
-    }
-    match /matches/{mid} {
-      allow read, write: if request.auth.uid in resource.data.players;
-    }
+```json
+[
+  {
+    "id": 1,
+    "text": "Berapakah hasil dari 15 x 12?",
+    "imageUrl": "",
+    "answerType": "text",
+    "options": ["150", "160", "180", "200"],
+    "correctAnswer": 2
   }
-}
+]
 ```
+
+> **Keamanan Kuis**: Server Colyseus membaca array `questions` dari database saat room dibuat, lalu mengekstrak kunci jawaban (`correctAnswer`) ke dalam dictionary privat server (`this.questionCorrectAnswers`). Kunci jawaban **tidak pernah disinkronkan ke client**.
+
+---
+
+## 2. Tabel: `game_sessions`
+
+Menyimpan status dan riwayat setiap sesi permainan yang dibuat oleh host.
+
+```sql
+CREATE TABLE public.game_sessions (
+    id VARCHAR(50) PRIMARY KEY, -- XID unik (20-karakter)
+    room_code VARCHAR(6) NOT NULL, -- PIN 6-digit (misal: "ABC123")
+    host_id VARCHAR(100) NOT NULL,
+    quiz_id UUID REFERENCES public.quizzes(id),
+    status VARCHAR(20) DEFAULT 'waiting', -- 'waiting' | 'active' | 'finished'
+    difficulty VARCHAR(20) DEFAULT 'easy', -- 'easy' | 'medium' | 'hard'
+    question_count INT DEFAULT 5,
+    timer_seconds INT DEFAULT 300,
+    allowed_user_ids JSONB DEFAULT '[]'::jsonb, -- Whitelist peserta untuk sesi kompetisi
+    participants JSONB DEFAULT '[]'::jsonb, -- Snapshot hasil & statistik seluruh pemain
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### Struktur Objek Partisipan dalam `participants`:
+Saat permainan berakhir, endpoint `/api/game/sync-results` mengompilasi snapshot ranking dan performa tiap siswa ke dalam kolom `participants`:
+
+```json
+[
+  {
+    "id": "user_abc123",
+    "user_id": "auth_uuid_456",
+    "profile_id": "profile_xid_789",
+    "nickname": "Player1",
+    "avatar_url": "https://.../avatar.png",
+    "score": 85,
+    "correct": 8,
+    "wrong": 2,
+    "accuracy": "80.00",
+    "completion": true,
+    "duration": 142000,
+    "started": "2026-09-25T10:00:00.000Z",
+    "ended": "2026-09-25T10:02:22.000Z",
+    "answers": [
+      {
+        "question_id": "1",
+        "answer_id": "2",
+        "correct": true,
+        "timestamp": 1782789012345
+      }
+    ]
+  }
+]
+```
+
+---
+
+## 3. Tabel: `profiles`
+
+Menyimpan profil identitas pemain yang terdaftar di platform GameForSmart:
+
+```sql
+CREATE TABLE public.profiles (
+    id VARCHAR(50) PRIMARY KEY,
+    auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    fullname VARCHAR(255),
+    nickname VARCHAR(100),
+    avatar_url TEXT,
+    language VARCHAR(10) DEFAULT 'id',
+    role VARCHAR(50) DEFAULT 'student',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+---
+
+## 4. Keamanan & Hak Akses (RLS & Service Role)
+
+* **Client**: Menggunakan Anon Key Supabase hanya untuk membaca profil akun yang sedang login dan melakukan autentikasi via `@supabase/ssr`.
+* **Server**: Menggunakan `SUPABASE_UTAMA_SERVICE_ROLE_KEY` (service role) agar dapat melakukan operasi bypass Row Level Security (RLS) saat menyimpan sesi game, memvalidasi whitelist sesi kompetisi, dan mengambil soal kuis.

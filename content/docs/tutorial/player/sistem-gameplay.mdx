@@ -9,6 +9,8 @@ Di luar mekanisme menjawab kuis, Zigma mengusung genre **2D Action-Adventure/RPG
 
 Logika permainan dijalankan menggunakan **Phaser 3** pada sisi client dan disinkronkan secara real-time melalui room state **Colyseus** di server.
 
+![Arena Gameplay 2D Zigma](/images/gameplay.png)
+
 ---
 
 ## 1. Sistem Kontrol & Pergerakan Pemain
@@ -22,7 +24,7 @@ Pemain dapat mengendalikan karakter melalui 3 skema kontrol responsif:
 - **Kecepatan Dasar:** `130 px/detik`.
 - **Buff Speed Boost:** Kecepatan meningkat 50% menjadi `195 px/detik` saat mengambil buff dari peti harta karun.
 
-```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+```typescript title="Logika Kontrol & Input Client"
 const myPlayerState = this.room.state.players.get(this.room.sessionId);
 let speed = 130;
 if (myPlayerState && myPlayerState.hasSpeedBoost) {
@@ -64,7 +66,7 @@ Rintangan peta dibaca langsung dari data layer objek Tiled map (berupa poligon, 
 
 Agar pergerakan pemain tetap terasa luwes, sistem menggunakan algoritma **per-axis wall sliding**: jika gerakan penuh terhalang, sistem menguji pergerakan sumbu `X` dan sumbu `Y` secara terpisah sehingga pemain tetap bisa meluncur menyusuri tepi dinding tanpa tersendat.
 
-```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+```typescript title="Penanganan Rintangan Wall-Sliding"
 // Uji pergerakan penuh
 if (!this.isInsideBarrier(newX, newY)) {
     this.currentPlayer.x = newX;
@@ -96,7 +98,7 @@ Pemain harus melancarkan tebasan senjata ke monster musuh untuk memicu pertempur
 - **Auto-Attack:** Saat pemain berjalan menggunakan mode *tap-to-move* dan mendekati monster dalam radius 50px, serangan akan otomatis dilepaskan.
 - **Kalkulasi Hitbox Arah:** Hitbox diaktifkan pada 200ms setelah animasi tebasan dimulai. Hitbox memvalidasi jarak maksimal 50px dan sudut toleransi 60° (`Math.PI / 3`) searah hadap karakter (`flipX`).
 
-```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+```typescript title="Hitbox Serangan & Interaksi Enemy"
 performAttackHitbox(isLeft: boolean) {
     const range = 50;
     const angleTolerance = Math.PI / 3;
@@ -138,7 +140,7 @@ Peti harta karun ditempatkan di beberapa titik strategis map permainan. Pemain y
 3. **Mekanisme Respawn:** Setelah diklaim, peti akan hilang sementara dan muncul kembali (*respawn*) setelah jeda 25–35 detik.
 
 ### Implementasi Client
-```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+```typescript title="Interaksi Peti Harta di Sisi Client"
 handleChestInteraction(chestIndex: number) {
     const chest = this.room.state.chests[chestIndex];
     const myPlayer = this.room.state.players.get(this.room.sessionId);
@@ -154,7 +156,7 @@ handleChestInteraction(chestIndex: number) {
 ```
 
 ### Penanganan Server
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Logika Server Pengambilan Peti & Buff"
 this.onMessage("collectChest", (client, data) => {
     const player = this.getPlayerByClient(client);
     const chest = this.state.chests[data.chestIndex];
@@ -190,7 +192,7 @@ Peta permainan yang luas dilengkapi dengan fitur bantuan navigasi:
 - **Kompas Musuh Real-Time:** Menghitung sudut koordinat posisi pemain terhadap monster aktif terdekat setiap frame dan memutar ikon jarum kompas di HUD.
 - **Minimap Interaktif:** Menekan tombol `M` atau ikon map membuka tampilan minimap untuk meninjau sebaran seluruh pemain dan monster.
 
-```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+```typescript title="Update Kompas Arah Target"
 if (nearestId) {
     const enemySprite = this.enemyEntities[nearestId];
     const angle = Phaser.Math.Angle.Between(
@@ -209,7 +211,7 @@ Kamera permainan menyesuaikan kondisi aksi secara dinamis:
 - **Eksplorasi Normal:** Kamera mengunci posisi pemain dengan interpolasi halus (`cameras.main.startFollow(..., 0.2, 0.2)`).
 - **Pertemuan Musuh / Buka Peti:** Kamera melepaskan kuncian, bergeser (*pan*) fokus ke koordinat objek target, lalu melakukan zoom besar (**`zoomTo(3.5)`**) selama 1 detik untuk memberikan efek dramatis.
 
-```typescript title="client/src/scenes/player/[roomCode]/game/page.ts"
+```typescript title="Efek Zoom Dramatis Kamera"
 startCombatCamera(targetX: number, targetY: number) {
     if (this.isZooming) return;
     this.isZooming = true;

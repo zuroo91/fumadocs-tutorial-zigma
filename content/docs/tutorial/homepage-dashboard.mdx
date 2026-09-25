@@ -1,70 +1,100 @@
 ---
 title: Homepage & Dashboard
-description: Halaman utama, profil pemain, dan navigasi.
+description: Alur entry point client, bootstrap antarmuka, navigasi menu utama, dan manajemen profil pemain.
 ---
 
 # Homepage & Dashboard
 
-Halaman utama sebelum masuk ke permainan. Menampilkan navigasi untuk HOST GAME dan JOIN GAME.
+Halaman utama Zigma bertindak sebagai gerbang navigasi utama bagi pengguna setelah melewati pemeriksaan autentikasi.
 
-## Layout
+Berbeda dengan aplikasi React biasa, Zigma menggunakan **TypeScript DOM bootstrap** yang memuat overlay HTML/TailwindCSS di atas canvas Phaser 3.
 
-```tsx title="src/pages/HomePage.tsx"
-const HomePage: React.FC = () => {
-  const navigate = useNavigate();
-  const [nickname, setNickname] = useState('');
-  const [avatar, setAvatar] = useState('🎮');
+---
 
-  return (
-    <div className="min-h-screen relative fantasy-bg">
-      <main className="relative z-10 p-4 md:p-8">
-        <div className="max-w-2xl mx-auto">
-          <h1>ZIGMA QUIZ</h1>
+## 1. Bootstrap Utama Aplikasi
 
-          {/* Setup Profil */}
-          <div className="profile-setup">
-            <input
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="Masukkan nickname"
-            />
-            <AvatarSelector selected={avatar} onSelect={setAvatar} />
-          </div>
+Fungsi `bootstrap()` bertanggung jawab atas inisialisasi awal seluruh aplikasi:
 
-          {/* Menu Utama */}
-          <div className="menu-grid">
-            <button onClick={() => navigate('/host')}>
-              <span>HOST GAME</span>
-            </button>
-            <button onClick={() => navigate('/join')}>
-              <span>JOIN GAME</span>
-            </button>
-          </div>
+1. **Sinkronisasi Bahasa (`initLanguageSync`)**: Membaca preferensi bahasa pengguna (`id`, `en`, `ar`) dan mengatur arah antarmuka (LTR atau RTL).
+2. **Penanganan OAuth Callback**: Memeriksa parameter token OAuth pada URL.
+3. **Pemeriksaan Sesi Autentikasi**:
+   * Jika belum login (`!isAuth`), sistem merender `LoginUI` dan menginisialisasi `LoginManager`.
+   * Jika sudah terautentikasi, sistem merender antarmuka lobi (`LobbyUI`, `CreateRoomUI`, `QuizSelectionUI`, dll.) dan menginisialisasi `LobbyManager`.
 
-          {/* How to Play */}
-          <HowToPlayDialog />
-        </div>
-      </main>
-    </div>
-  );
-};
+```typescript title="Bootstrap Inisialisasi Aplikasi"
+// Periksa status autentikasi pemain
+const isAuth = await authService.isAuthenticated();
+
+if (!isAuth) {
+    const { LoginUI } = await import('./scenes/login/ui');
+    const { LoginManager } = await import('./scenes/login/page');
+    LoginUI.render();
+    const loginManager = new LoginManager();
+    await loginManager.init();
+} else {
+    // Muat UI lobi secara paralel
+    const [
+        { LobbyUI },
+        { LobbyManager },
+        { CreateRoomUI },
+        { QuizSelectionUI },
+        { QuizSettingsUI },
+    ] = await Promise.all([
+        import('./scenes/lobby/ui'),
+        import('./scenes/lobby/page'),
+        import('./scenes/lobby/create-room-ui'),
+        import('./scenes/host/selectquiz/ui'),
+        import('./scenes/host/[roomCode]/quizsetting/ui'),
+    ]);
+
+    // Render komponen DOM ke dalam container #app
+    LobbyUI.render();
+    CreateRoomUI.render();
+    QuizSelectionUI.render();
+    QuizSettingsUI.render();
+
+    const lobbyManager = new LobbyManager();
+    await lobbyManager.init();
+}
 ```
 
-## Profil Pemain
+---
 
-Profil disimpan di localStorage:
+## 2. Menu Utama & Navigasi (`LobbyManager.ts`)
 
-```tsx
-const setProfile = () => {
-  localStorage.setItem('zigma_user', JSON.stringify({ nickname, avatar }));
-};
-```
+![Tampilan Beranda & Dashboard Zigma](/images/homepage.png)
 
-## Navigasi
+Class `LobbyManager` mengelola interaksi di beranda:
 
-| Tombol | Rute | Deskripsi |
-| ------ | ---- | --------- |
-| HOST GAME | `/host` | Buat room baru |
-| JOIN GAME | `/join` | Masuk ke room dengan kode |
+1. **Tampilan Profil Pengguna**:
+   * Menampilkan nama panggilan (*nickname*) atau nama lengkap dari profil Supabase.
+   * Menampilkan avatar pemain. Jika gambar gagal dimuat, sistem menampilkan inisial huruf nama secara otomatis.
+2. **Opsi Host Game**:
+   * Membuka modal pemilihan kuis (`SelectQuizManager`).
+   * Mengatur parameter ruangan (waktu, tingkat kesulitan, map).
+3. **Opsi Join Game**:
+   * **Input PIN 6-digit**: Pemain mengetikkan kode unik ruangan secara langsung.
+   * **Scan QR Code**: Pemain membuka pemindai kamera via library `html5-qrcode` untuk bergabung tanpa perlu mengetik manual.
+   * **Auto-Join via URL**: Jika pemain membuka tautan dengan format `/join/:roomCode` atau parameter `?room=...`, sistem akan memproses auto-join secara otomatis.
+
+---
+
+## 3. Struktur Rute Navigasi Zigma
+
+Zigma menggunakan utility router kustom (`Router.ts`) yang mengatur transisi halaman tanpa reload (*Single Page Application*):
+
+| Menu / Aksi | Rute URL | Pengelola Scene / Manager |
+|---|---|---|
+| Beranda / Lobi Utama | `/` | `LobbyManager` |
+| Login Akun | `/login` | `LoginManager` |
+| Pemilihan Kuis Host | `/host/select` | `SelectQuizManager` |
+| Pengaturan Room Host | `/host/[roomCode]/settings` | `QuizSettingManager` |
+| Ruang Tunggu Host | `/host/[roomCode]/lobby` | `HostWaitingRoomScene` |
+| Spectator Monitor Host | `/host/[roomCode]/progress` | `HostProgressScene` |
+| Ruang Tunggu Pemain | `/player/[roomCode]/waiting` | `PlayerWaitingRoomManager` |
+| Arena Permainan 2D | `/player/[roomCode]/game` | `GameScene` |
+| Kartu Hasil Pemain | `/player/[roomCode]/result` | `ResultManager` |
+| Leaderboard Akhir | `/host/[roomCode]/leaderboard` | `HostLeaderboardManager` |
+| Bot Load Testing | `/test` | `BotSimulatorManager` |
 
 Lanjutkan ke [Host: Create Room →](/docs/tutorial/host/create-room) atau [Join Session →](/docs/tutorial/join/join-session).

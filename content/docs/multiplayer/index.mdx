@@ -1,11 +1,93 @@
 ---
-title: Multiplayer
-description: Real-time multiplayer, matchmaking, dan arena battle.
+title: Multiplayer & Jaringan
+description: Arsitektur multiplayer real-time Colyseus 0.15, partisi sub-room, dan sinkronisasi state.
 ---
 
-# Multiplayer
+# Multiplayer & Jaringan
 
-Gunakan Socket.io untuk sinkronisasi state antar pemain secara real-time. Server
-bertanggung jawab untuk matchmaking, validasi jawaban, dan broadcast event damage.
+Sistem multiplayer Zigma dirancang menggunakan **Colyseus 0.15** melalui koneksi WebSocket persisten (`@colyseus/ws-transport`). 
 
-Lihat detail di [**Tutorial: Multiplayer**](/docs/tutorial/player/multiplayer).
+Arsitektur ini bersifat **authoritative server**: seluruh state permainan (posisi, kuis, AI monster, skor) dikelola oleh server Colyseus, dan disinkronkan secara otomatis ke setiap klien melalui schema biner `@colyseus/schema`.
+
+---
+
+## 1. Lifecycle Colyseus Room
+
+Room permainan (`game_room`) melewati beberapa fase penting:
+
+```
+onCreate() ──> onAuth() ──> onJoin() ──> onMessage() ──> onLeave() / onDispose()
+```
+
+1. **`onCreate(options)`**:
+   * Menetapkan `this.autoDispose = false` agar room tidak musnah saat host me-refresh browser.
+   * Mengatur patch rate ke **50ms** (20 update/detik).
+   * Mengunduh soal kuis dari Supabase Utama dan menyimpannya di memori privat server.
+   * Menyiapkan konfigurasi sub-room sesuai tingkat kesulitan map.
+2. **`onAuth(client, options)`**:
+   * Memvalidasi apakah user memiliki izin masuk jika room merupakan sesi kompetisi dengan whitelist `allowed_user_ids`.
+3. **`onJoin(client, options)`**:
+   * Memvalidasi apakah game sudah dimulai (*late-join protection*).
+   * Mengalokasikan spawn point bebas tabrakan dari data objek map Tiled.
+   * Menambahkan entitas `Player` ke dalam state sinkronisasi.
+4. **`onLeave(client, consented)`**:
+   * Memberikan *grace window* waktu tunggu pemulihan koneksi (reconnection) bagi host atau player sebelum menghapus sesi.
+
+```typescript title="Inisialisasi Lifecyle Room Sisi Server"
+async onCreate(options: any) {
+    this.setState(new GameState());
+
+    // Mencegah Colyseus OTOMATIS menghapus room saat host me-refresh halaman
+    this.autoDispose = false;
+    this.setPatchRate(50); // 20fps patch rate
+
+    this.state.subject = options.subject || "matematika";
+    this.state.difficulty = options.difficulty || "mudah";
+    this.state.roomCode = options.roomCode || this.generateRoomCode();
+    // ...
+}
+```
+
+---
+
+## 2. Partisi Sub-Rooms (Sistem Pulau)
+
+Untuk mencegah kepadatan pemain dan menjaga performa pada ruangan besar:
+* Kapasitas total lobi adalah **51 klien** (50 pemain + 1 host).
+* Pemain secara otomatis dialokasikan ke dalam beberapa **sub-room** berkapasitas 4–8 orang (bergantung pada map/difficulty).
+* Masing-masing sub-room ditempatkan pada zona pulau map tertentu sehingga pemain tidak menumpuk di satu titik awal spawn.
+
+```typescript title="Alokasi Sub-Rooms dan Kapasitas Client"
+this.maxClients = 51; // 50 pemain + 1 host
+const config = ROOM_CONFIG[this.state.difficulty as keyof typeof ROOM_CONFIG];
+const subRoomCapacity = config ? config.maxPlayers : 4;
+const totalSubRooms = Math.ceil(this.maxClients / subRoomCapacity);
+
+for (let i = 1; i <= totalSubRooms; i++) {
+    const sub = new SubRoom();
+    sub.id = `Room ${i}`;
+    sub.capacity = subRoomCapacity;
+    this.state.subRooms.push(sub);
+}
+```
+
+---
+
+## 3. Sinkronisasi Pergerakan & Interpolasi Klien
+
+1. **Throttled Input Send**: Input pergerakan pemain di client dikirim ke server via pesan `movePlayer` dengan batasan interval waktu `networkSendRate` (~100ms) untuk menghemat bandwidth.
+2. **LERP Smooth Interpolation**: Saat menerima update koordinat dari server, client tidak langsung memindahkan sprite secara instan (*teleport*), melainkan menggunakan interpolasi LERP dengan koefisien `0.25`:
+   ```typescript
+   x += (targetX - x) * 0.25;
+   y += (targetY - y) * 0.25;
+   ```
+3. **Rekonsiliasi Latensi**: Jika terjadi lonjakan latensi (*lag spike*) sehingga selisih posisi lokal melebihi jarak batas aman (>300px), posisi karakter di-snap kembali ke koordinat otoritatif server.
+
+---
+
+## 4. Ketahanan Reconnection (*State Recovery*)
+
+Jika koneksi internet pemain atau host terputus sesaat (misalnya tab browser ter-refresh):
+1. Client menyimpan `currentReconnectionToken` di `SessionStore`.
+2. Saat halaman termuat ulang, `roomRestore.ts` langsung memanggil fungsi `client.reconnect(token)`.
+3. Server mengenali token tersebut dan memulihkan kembali seluruh status sesi (skor, soal yang telah dijawab, posisi, dan role) tanpa memaksa pemain mengulang dari nol.

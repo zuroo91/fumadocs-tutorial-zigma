@@ -3,18 +3,20 @@ title: Host Monitor
 description: Alur dan cara kerja sistem Host Monitor (Spectator/Progress Scene).
 ---
 
-Sistem **Host Monitor** (*Spectator/Progress Scene*) dikelola oleh class `HostProgressScene` di [`client/src/scenes/host/[roomCode]/progress/page.ts`](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/client/src/scenes/host/[roomCode]/progress/page.ts).
+Sistem **Host Monitor** (*Spectator/Progress Scene*) dikelola oleh class `HostProgressScene` pada modul pemantauan pertandingan Host.
 
 Scene ini bertindak sebagai ruang pemantauan visual real-time bagi Host saat kuis sedang berjalan. Host dapat melihat seluruh pemain bergerak di dalam map, progres pengerjaan soal masing-masing pemain, sisa waktu kuis, serta memiliki kendali untuk mengakhiri permainan.
 
 Berikut analisis arsitektur dan alur kerjanya berdasarkan kode sumber:
+
+![Layar Host Progress Monitoring](/images/host-monitor.png)
 
 ---
 
 ### 1. Validasi Keamanan Host & Proteksi Navigasi
 Sebelum merender map dan memantau room, sistem memastikan user yang membuka halaman ini adalah benar-benar host yang sah:
 
-```typescript title="client/src/scenes/host/[roomCode]/progress/page.ts"
+```typescript title="Validasi Keamanan & Akses Host"
 private _setupScene() {
     SessionStore.set('gameStarted', 'true', 'host');
     this.registry.set('room', this.room);
@@ -50,7 +52,7 @@ private _setupScene() {
 ### 2. Sinkronisasi State Colyseus & Auto-Recovery
 Host memantau event dari Colyseus room seperti waktu countdown awal, sinkronisasi timer kuis, dan mekanisme auto-reconnect tanpa kehilangan data:
 
-```typescript title="client/src/scenes/host/[roomCode]/progress/page.ts"
+```typescript title="Sinkronisasi State & Auto-Recovery"
 private _registerRoomListeners(room: Room) {
     // 1. Timer update dari server
     room.onMessage('timerUpdate', (data: { remaining: number }) => {
@@ -87,7 +89,7 @@ private _registerRoomListeners(room: Room) {
 ### 3. Kontrol Kamera Host (Free-Pan & Zoom)
 Host dapat memperbesar, memperkecil, atau menggeser (*drag/pan*) kamera untuk mengawasi sudut peta tertentu:
 
-```typescript title="client/src/scenes/host/[roomCode]/progress/page.ts"
+```typescript title="Kontrol Kamera Spectator"
 // Zoom menggunakan scroll wheel mouse
 this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
     const newZoom = this.cameras.main.zoom - (deltaY * 0.001);
@@ -116,7 +118,7 @@ this.input.on('pointerup', () => this.isDragPan = false);
 ### 4. Pelacakan Pemain & Progress Bar Real-time
 Setiap pemain yang masuk (`players.onAdd`) dirender sebagai container berisi sprite karakter, rambut, nama, serta progress bar yang menghitung rasio soal yang sudah dijawab:
 
-```typescript title="client/src/scenes/host/[roomCode]/progress/page.ts"
+```typescript title="Pelacakan & Progress Bar Player"
 const handlePlayerAdd = (player: any, sessionId: string) => {
     if (player.isHost) return; // Host tidak memiliki avatar playable
     const container = this.add.container(player.x, player.y).setScale(2.5);
@@ -163,7 +165,7 @@ const handlePlayerAdd = (player: any, sessionId: string) => {
 ### 5. Render Loop & Interpolasi Animasi (`update`)
 Di setiap frame (`update`), posisi karakter dihaluskan menggunakan interpolasi LERP (`container.x += (tx - container.x) * 0.25`) dan status animasi diganti secara dinamis antara `attack`, `walk`, atau `idle`:
 
-```typescript title="client/src/scenes/host/[roomCode]/progress/page.ts"
+```typescript title="Interpolasi Pergerakan & Animasi Karakter"
 update(time: number, delta: number) {
     if (!this.room || !this.room.state) return;
     Object.keys(this.playerEntities).forEach(sessionId => {
@@ -205,7 +207,7 @@ update(time: number, delta: number) {
 ### 6. Kontrol Akhiri Permainan (End Game by Host)
 Host memiliki tombol darurat di pojok kanan bawah untuk mengakhiri kuis sebelum timer habis. Saat dikonfirmasi, pesan dikirim ke Colyseus server:
 
-```typescript title="client/src/scenes/host/[roomCode]/progress/page.ts"
+```typescript title="Fungsi Konfirmasi Akhiri Kuis"
 showEndGamePopup() {
     // ...menampilkan modal konfirmasi "Akhiri Permainan?"...
     yesBtn.onclick = () => {
@@ -221,7 +223,7 @@ showEndGamePopup() {
 
 Ketika server merespon dengan pesan `gameEnded`, host otomatis diarahkan ke halaman Leaderboard:
 
-```typescript title="client/src/scenes/host/[roomCode]/progress/page.ts"
+```typescript title="Respon Event Game Ended"
 room.onMessage('gameEnded', (data: any) => {
     this.isEnding = true;
     this.registry.set('leaderboardData', data.rankings);

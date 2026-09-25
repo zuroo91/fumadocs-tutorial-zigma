@@ -1,6 +1,6 @@
 ---
 title: Mulai Sekarang
-description: Setup project dari nol dan install semua dependency.
+description: Setup project dari nol dan install semua dependency monorepo Zigma.
 icon: Rocket
 ---
 
@@ -8,52 +8,56 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 # Mulai Sekarang
 
-Selamat datang di build guide **Zigma**! Di bagian ini kamu akan
-mempersiapkan environment dan project skeleton untuk mulai membangun game kuis RPG
-multiplayer.
+Selamat datang di panduan teknis **Zigma**! Di bagian ini kamu akan mempersiapkan environment dan workspace monorepo untuk menjalankan game kuis multiplayer real-time 2D.
 
 <Callout type="info">
-  Estimasi waktu: **30 menit** untuk setup awal, lalu **4-6 minggu** untuk MVP
-  lengkap dengan multiplayer real-time.
+  Estimasi waktu: **15–30 menit** untuk setup environment, konfigurasi file `.env`, dan menjalankan development server.
 </Callout>
 
-## Gambaran  Umum Zigma & Cara Kerja
+## Gambaran Umum Zigma & Cara Kerja
 
-Zigma adalah game *Educational 2D Top-Down Multiplayer Quiz Arcade RPG* berbasis Web. Game ini menggabungkan 
-mekanisme aksi 2D (avatar, musuh berpatroli/melarikan diri, chest bonus) dengan kuis edukatif.
+Zigma adalah game *Educational 2D Top-Down Multiplayer Quiz Arcade* berbasis Web dari platform GameForSmart (`gameforsmart.com`). Game ini memadukan aksi petualangan 2D retro pixel dengan kuis edukatif:
 
-- **Konsep**: Host membuat room kuis dan menentukan aturan. Player bergabung menggunakan kode unik (roomCode).
-- **Cara Kerja**: Player mengontrol avatar 2D untuk mengejar musuh (skeleton/goblin) yang membawa kuis. Saat berinteraksi, 
-  modal kuis muncul. Menjawab dengan benar mengalahkan musuh, memberikan poin, dan memperbarui leaderboard real-time.
+* **Konsep**: Host membuat room kuis, menentukan batas waktu dan jumlah soal. Pemain bergabung menggunakan kode PIN 6-digit atau scan QR Code.
+* **Cara Kerja**: Pemain mengendalikan avatar Human 2D untuk mengejar monster (skeleton & goblin) yang membawa kuis. Begitu didekati dan ditebas, modal kuis interaktif muncul. Menjawab dengan benar mengalahkan monster dan menambah skor, sementara peti harta karun (*chests*) memberikan buff kecepatan dan pemulihan nilai.
 
+---
 
-## Prasyarat
+## Prasyarat Sistem
 
-Pastikan tools berikut sudah terpasang di *devices* kamu:
+Pastikan tools berikut sudah terpasang di perangkat kamu:
 
-- **Node.js** versi LTS (≥ 18) — [download](https://nodejs.org/)
-- **Git** untuk version control
-- **Akun Firebase** gratis (Spark plan) untuk Auth, Firestore, dan Hosting
-- **Code editor** — rekomendasi: VS Code dengan ekstensi ESLint + Prettier
+* **Node.js** versi LTS (>= 18.0.0) — [download](https://nodejs.org/)
+* **Git** untuk version control
+* **Redis Server** (port `6379`) — untuk clustering matchmaking Colyseus
+* **Proyek Supabase** — URL & Service Role Key untuk database PostgreSQL
+* **Code Editor** — Rekomendasi: Visual Studio Code
+
+---
 
 ## Quick Start
 
 ```bash
-# 1. Buat project baru
-mkdir nama project kamu && cd nama project kamu
-npm init -y
+# 1. Clone repository
+git clone https://gitlab.com/your-org/MultiplayerGameQuiz.git
+cd MultiplayerGameQuiz
 
-# 2. Install dependencies utama
-npm install react react-dom react-router-dom
-npm install firebase
-npm install socket.io socket.io-client
-npm install axios
+# 2. Install seluruh dependency monorepo (client, server, shared)
+npm install
 
-# 3. Install dev dependencies
-npm install -D vite @vitejs/plugin-react
+# 3. Salin file environment konfigurasi
+cp server/.env.example server/.env
+cp client/.env.example client/.env
+
+# 4. Jalankan client dan server secara serentak
+npm run dev
 ```
 
-## Struktur Project
+Server Colyseus akan berjalan di `http://localhost:2567`, dan client Vite akan terbuka di `http://localhost:5173`.
+
+---
+
+## Struktur Monorepo
 
 ```text
 MultiplayerGameQuiz/
@@ -92,5 +96,4 @@ MultiplayerGameQuiz/
                 └── BotSimulatorManager.ts # Simulator bot load testing
 ```
 
-Lanjut ke [Stack Teknologi](/docs/stack) untuk melihat pilihan stack dan alasannya,
-atau [Struktur Project](/docs/structure) untuk layout folder yang disarankan.
+Lanjut ke [Stack Teknologi](/docs/stack) untuk melihat rincian dependensi, atau [Struktur Project](/docs/structure) untuk layout folder dan tanggung jawab arsitekturalnya.

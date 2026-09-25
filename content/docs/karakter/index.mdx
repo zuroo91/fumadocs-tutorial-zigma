@@ -6,26 +6,28 @@ description: Kustomisasi karakter pemain berdasarkan model dasar Human dan gaya 
 # Sistem Karakter
 
 Karakter pemain yang dapat dimainkan (playable character) menggunakan satu model dasar Human (Manusia) dengan sistem kustomisasi visual bertingkat (layered sprites): Tubuh Dasar (Base Body) + Alat/Senjata (Tools) + Gaya Rambut (Hair).
-Pilihan kustomisasi karakter yang tersedia untuk pemain dibedakan berdasarkan gaya rambut (HAIR_OPTIONS):
+Pilihan kustomisasi karakter yang tersedia untuk pemain dibedakan berdasarkan gaya rambut (`HAIR_OPTIONS`):
 
-| Nama Tampilan | Slug | Sprite IDLE / WALK |
-| --- | --- | --- |
-| Default (None) | `none` | Botak / Tanpa rambut tambahan |
-| Bowl Hair | `bowl-hair` | `bowlhair_idle` / `bowlhair_walk` |
-| Curly Hair | `curly-hair` | `curlyhair_idle` / `curlyhair_walk` |
-| Long Hair | `long-hair` | `longhair_idle` / `longhair_walk` |
-| Mop Hair | `mop-hair` | `mophair_idle` / `mophair_walk` |
-| Short Hair | `short-hair` | `shorthair_idle` / `shorthair_walk` |
-| Spikey Hair | `spikey-hair` | `spikeyhair_idle` / `spikeyhair_walk` |
+| Visual Preview | Nama Tampilan | Slug | Sprite IDLE / WALK |
+| :---: | --- | --- | --- |
+| ![Default Body](/images/karakter/Cuplikan_layar_2026-09-25_142530-removebg-preview.png) | Default (None) | `none` | Botak / Tanpa rambut tambahan |
+| ![Bowl Hair](/images/karakter/bowlhair.png) | Bowl Hair | `bowl-hair` | `bowlhair_idle` / `bowlhair_walk` |
+| ![Curly Hair](/images/karakter/curlyhair.png) | Curly Hair | `curly-hair` | `curlyhair_idle` / `curlyhair_walk` |
+| ![Long Hair](/images/karakter/longhair.png) | Long Hair | `long-hair` | `longhair_idle` / `longhair_walk` |
+| ![Mop Hair](/images/karakter/mophair.png) | Mop Hair | `mop-hair` | `mophair_idle` / `mophair_walk` |
+| ![Short Hair](/images/karakter/shorthair.png) | Short Hair | `short-hair` | `shorthair_idle` / `shorthair_walk` |
+| ![Spikey Hair](/images/karakter/spikeyhair.png) | Spikey Hair | `spikey-hair` | `spikeyhair_idle` / `spikeyhair_walk` |
+
+---
 
 ## Bagaimana Player Memilih & Mendapatkan Karakter?
 
 Semua variasi karakter/rambut terbuka secara gratis (*free selection*), tidak ada sistem gacha atau pembelian berbayar. Berikut adalah alur serta potongan kode implementasinya:
 
 ### 1. Pemilihan di Waiting Room
-Di halaman tunggu pemain (`waitingroom/page.ts`), pemain dapat menekan tombol **"Choose Character"**. Tombol ini membuka pop-up `CharacterSelectPopup.ts` yang menampilkan grid pilihan gaya rambut serta preview animasi bergerak (*idle animation*) secara langsung.
+Di halaman ruang tunggu pemain, pemain dapat menekan tombol **"Choose Character"**. Tombol ini membuka pop-up `CharacterSelectPopup` yang menampilkan grid pilihan gaya rambut serta preview animasi bergerak (*idle animation*) secara langsung.
 
-**File:** `client/src/scenes/player/[roomCode]/waitingroom/page.ts`
+**Modul:** Antarmuka Ruang Tunggu Pemain
 
 ```typescript
 // 1. Event listener tombol "Choose Character"
@@ -55,9 +57,9 @@ this.characterPopup = new CharacterSelectPopup(
 ---
 
 ### 2. Penyimpanan Lokal (*Local Persistence*) & Auto-Load saat Join
-Karakter yang dipilih disimpan ke `localStorage` browser dengan kunci `'player_hair_id'`. Ketika pemain masuk ke room atau bermain di sesi berikutnya, pilihan karakter tersebut langsung dimuat secara otomatis (`lobby/page.ts`).
+Karakter yang dipilih disimpan ke `localStorage` browser dengan kunci `'player_hair_id'`. Ketika pemain masuk ke room atau bermain di sesi berikutnya, pilihan karakter tersebut langsung dimuat secara otomatis oleh modul lobi utama.
 
-**File:** `client/src/scenes/lobby/page.ts`
+**Modul:** Inisialisasi Join Lobi
 
 ```typescript
 // Ambil hairId yang sebelumnya tersimpan di localStorage browser
@@ -82,9 +84,9 @@ const room = await this.client.joinById(targetRoom.roomId, joinOptions);
 ---
 
 ### 3. Sinkronisasi di Server Colyseus
-Klien mengirim pesan `updateHair` dengan payload `{ hairId }` ke server Colyseus (`GameRoom.ts`). Server memvalidasi ID (0–6), menetapkannya ke schema state `player.hairId`, dan menyiarkannya ke seluruh pemain lain di dalam room.
+Klien mengirim pesan `updateHair` dengan payload `{ hairId }` ke server Colyseus. Server memvalidasi ID (0–6), menetapkannya ke schema state `player.hairId`, dan menyiarkannya ke seluruh pemain lain di dalam room.
 
-**File:** `server/src/rooms/GameRoom.ts`
+**Modul:** Handler State GameRoom
 
 ```typescript
 // A. Saat pemain pertama kali bergabung (onJoin)

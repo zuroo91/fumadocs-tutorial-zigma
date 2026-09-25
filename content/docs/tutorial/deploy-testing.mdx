@@ -1,56 +1,83 @@
 ---
 title: Deploy & Testing
-description: Build, deploy, dan monitoring.
+description: Pengujian beban dengan Bot Simulator, monitoring room Colyseus, dan build produksi monorepo.
 ---
 
 # Deploy & Testing
 
-## Testing
+Sebelum merilis perubahan ke lingkungan produksi, Zigma menyediakan perkakas pengujian terintegrasi untuk memvalidasi performa multiplayer dan kestabilan game server.
 
+---
+
+## 1. Bot Simulator (`/test`)
+
+Zigma menyertakan **Bot Simulator** bawaan yang dapat diakses melalui rute `/test` (dikelola oleh modul simulator bot dan antarmuka `bot.html`).
+
+Perkakas ini memungkinkan pengembang untuk:
+* Memasukkan PIN ruangan tertentu.
+* Menginjeksikan puluhan bot pemain sekaligus ke dalam room Colyseus.
+* Mensimulasikan bot menjawab kuis secara acak atau otomatis.
+* Menguji batas kapasitas sub-room (hingga 50 bot) dan mengukur latensi WebSocket server.
+
+```typescript title="Modul Bot Simulator"
+// Inisialisasi simulator bot
+export class BotSimulatorManager {
+    async spawnBots(roomCode: string, botCount: number) {
+        for (let i = 0; i < botCount; i++) {
+            const bot = new BotInstance(`Bot_${i + 1}`);
+            await bot.join(roomCode);
+        }
+    }
+}
+```
+
+---
+
+## 2. Pemantauan Real-Time Colyseus (`/colyseus`)
+
+Server Express menyediakan antarmuka web bawaan melalui package `@colyseus/monitor` untuk memeriksa metrik server secara langsung:
+
+* **URL Akses**: `http://localhost:2567/colyseus` (atau domain produksi).
+* **Informasi yang Ditampilkan**:
+  * Daftar seluruh room aktif beserta `roomCode` dan `roomId`.
+  * Jumlah klien yang terhubung ke setiap room.
+  * Konsumsi memori heap dan proses CPU.
+  * Opsi untuk menutup (*force dispose*) room tertentu secara manual bila diperlukan.
+
+---
+
+## 3. Validasi Tipe & Build Produksi
+
+Jalankan perintah berikut pada root monorepo:
+
+### A. Typecheck Seluruh Workspace
 ```bash
-# Run client dev server
-npm run dev:client
+npm run typecheck
+```
+* Memvalidasi seluruh tipe TypeScript pada `client` (`tsc --noEmit`) dan `server` (`tsc --noEmit`).
 
-# Run API server
-npm run dev:api
-
-# Run full dev (all services)
-npm run dev
-
-# Build client
+### B. Build Produksi
+```bash
 npm run build
-
-# Preview build
-npm run preview
 ```
+1. `npm run build --prefix client`: Mengompilasi asset Vite dan menempatkan output ke folder `server/public`.
+2. `npm run build --prefix server`: Mengompilasi kode backend TypeScript ke folder `server/build` dan menyalin file tilemap Tiled (`map_easy.json`, `map_medium.json`, `map_hard.json`).
 
-## Deploy
+---
+
+## 4. Menjalankan di Lingkungan Produksi (PM2)
+
+Di server Linux/VPS produksi, jalankan service menggunakan file konfigurasi PM2:
 
 ```bash
-# Build
-npm run build
+# Menjalankan 2 worker cluster
+pm2 start server/ecosystem.config.js
 
-# Deploy ke Vercel/Netlify
-# Upload folder dist/
+# Melihat status cluster
+pm2 status
+
+# Memeriksa log aktivitas
+pm2 logs Zigma
 ```
 
-## Server Setup
-
-```bash
-# Server (Colyseus + REST API)
-npm run dev:server
-
-# Server runs on port 2567 (Colyseus WebSocket)
-# REST API on port 3001
-```
-
-## Monitoring
-
-Periksa log server:
-
-```bash
-# Pastikan server berjalan
-console.log(`🎮 Zigma Game Server running on http://localhost:${PORT}`);
-```
-
-Kembali ke [Tutorial Zigma →](/docs/tutorial).
+Kembali ke [Overview Tutorial →](/docs/tutorial).

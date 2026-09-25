@@ -1,56 +1,79 @@
 ---
 title: Leaderboard & Ranking
-description: Ranking global dan sistem level.
+description: Klasemen akhir pertandingan, podium 3 besar, dan ringkasan performa seluruh pemain di sisi Host.
 ---
 
-# Leaderboard & Ranking
+# Leaderboard & Ranking (Host)
 
-## Global Leaderboard
+Setelah permainan kuis berakhir (seluruh pemain telah menyelesaikan soal atau waktu timer habis), Host secara otomatis diarahkan ke layar **Host Leaderboard**.
 
-Tampilkan ranking pemain terbaik:
+Layar ini dikelola oleh class **`HostLeaderboardManager`** pada modul klasemen dan hasil pertandingan Host.
 
-```tsx title="src/pages/LeaderboardPage.tsx"
-const LeaderboardPage: React.FC = () => {
-  const [globalPlayers, setGlobalPlayers] = useState<Player[]>([]);
+---
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const data = await getGlobalLeaderboard();
-      setGlobalPlayers(data.slice(0, 10));
-    };
-    fetchData();
-  }, []);
+## 1. Menerima Data Ranking Final dari Server
 
-  return (
-    <div className="leaderboard">
-      <h2>🏆 Global Leaderboard</h2>
-      {globalPlayers.map((player, index) => (
-        <div key={player.id}>
-          <span>#{index + 1}</span>
-          <span>{player.nickname}</span>
-          <span>{player.score}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
+Ketika permainan selesai, server Colyseus menyiarkan pesan `gameEnded` yang membawa array `rankings` terurut:
+
+```typescript title="Penentuan Ranking di GameRoom Server"
+// Sort: skor tertinggi DESC -> yang selesai lebih cepat ASC
+const rankings = Array.from(this.state.players.values())
+    .sort((a, b) => {
+        if (b.score !== a.score) {
+            return b.score - a.score;
+        }
+        return a.finishTime - b.finishTime; // Tie-breaker durasi
+    })
+    .map((player, index) => ({
+        rank: index + 1,
+        sessionId: player.sessionId,
+        name: player.name,
+        avatarUrl: player.avatarUrl,
+        score: Math.round(player.score),
+        finishTime: player.finishTime,
+        duration: player.finishTime > 0 ? player.finishTime - this.state.gameStartTime : 0,
+        correctAnswers: player.correctAnswers,
+        wrongAnswers: player.wrongAnswers,
+        isIncomplete: player.isIncomplete
+    }));
+
+this.broadcast("gameEnded", { rankings, supabaseSessionId: this.sessionId });
 ```
 
-## Ranking Room
+---
 
-```ts
-// Diurutkan berdasarkan skor tertinggi
-const ranking = players.sort((a, b) => b.score - a.score);
-```
+## 2. Struktur Tampilan Layar Leaderboard
 
-## Level
+Layar Leaderboard host menyajikan data kompetisi secara visual:
 
-Level dihitung berdasarkan total skor kumulatif:
+### A. Podium Juara 3 Besar
+Menampilkan 3 pemain dengan peringkat teratas dalam bentuk panggung podium bergaya retro pixel:
+* **Podium 1 (Emas / Tengah)**: Juara 1 dengan mahkota dan ukuran avatar terbesar.
+* **Podium 2 (Perak / Kiri)**: Juara 2.
+* **Podium 3 (Perunggu / Kanan)**: Juara 3.
 
-```ts
-export const getLevel = (totalScore: number): number => {
-  return Math.floor(totalScore / 500) + 1;
-};
-```
+Setiap kartu podium menampilkan foto avatar, nama pemain, total skor (0–100), dan total waktu pengerjaan.
+
+### B. Tabel Peringkat Seluruh Peserta
+Di bawah podium, terdapat daftar tabel yang memuat seluruh partisipan ruangan:
+* **Kolom Rank**: Peringkat `#1`, `#2`, `#3`, dst.
+* **Kolom Nama & Avatar**: Identitas pemain.
+* **Kolom Jawaban**: Rasio jawaban benar dan salah (`correct / total`).
+* **Kolom Waktu**: Durasi pengerjaan dalam format menit dan detik (`mm:ss`).
+* **Kolom Skor**: Nilai akhir pemain.
+
+---
+
+## 3. Aksi Host di Akhir Permainan
+
+Host memiliki dua tombol kendali di bagian bawah layar:
+
+1. **Main Lagi (*Play Again*)**:
+   * Host mengirim sinyal `restartGame` ke server Colyseus.
+   * Server mengembalikan state ruangan ke kondisi awal (`waiting`), mengacak ulang soal, dan mengarahkan kembali seluruh pemain yang masih terhubung ke ruang tunggu (`/waiting`).
+2. **Kembali ke Beranda / Dashboard**:
+   * Menutup koneksi Colyseus secara aman.
+   * Membersihkan penyimpanan sesi lokal di `SessionStore`.
+   * Mengarahkan host kembali ke lobi utama atau dashboard statistik GameForSmart.
 
 Lanjutkan ke [Deploy & Testing →](/docs/tutorial/deploy-testing).

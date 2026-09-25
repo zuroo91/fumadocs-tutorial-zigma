@@ -1,70 +1,132 @@
 ---
 title: Setup & Autentikasi
-description: Inisialisasi project dan konfigurasi environment.
+description: Inisialisasi workspace monorepo Zigma dan integrasi autentikasi Supabase SSO.
 ---
 
 # Setup & Autentikasi
 
-## Inisialisasi Project
+Zigma dikembangkan sebagai proyek **monorepo npm workspaces** yang terdiri dari package `client`, `server`, dan `shared`. 
+
+Modul ini menjelaskan inisialisasi lingkungan kerja, dependensi yang digunakan, serta integrasi sistem autentikasi SSO berbasis Supabase.
+
+---
+
+## 1. Struktur Workspace Monorepo
+
+Root `package.json` mengelola workspaces untuk menyelaraskan dependensi antara client dan server:
+
+```json title="package.json"
+{
+  "name": "legends-of-learning-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "build": "npm run build --prefix client && npm run build --prefix server",
+    "start": "npm start --prefix server"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+```
+
+Untuk menginstal seluruh dependensi di semua workspace:
+```bash
+npm install
+```
+
+---
+
+## 2. Konfigurasi Environment
+
+Salin file contoh konfigurasi environment yang sudah disediakan pada masing-masing workspace:
 
 ```bash
-mkdir zigma-game && cd zigma-game
-npm init -y
+# Environment backend server
+cp server/.env.example server/.env
 
-# Install dependencies utama
-npm install react react-dom react-router-dom
-npm install @supabase/supabase-js
-
-# Install dev dependencies
-npm install -D vite @vitejs/plugin-react typescript tailwindcss
+# Environment frontend client
+cp client/.env.example client/.env
 ```
 
-## Konfigurasi Environment
+Pastikan variabel utama seperti port server, koneksi Redis, kredensial Supabase, dan origin CORS telah disesuaikan dengan environment target kamu.
 
-Buat file `.env.local`:
+---
+
+## 3. Integrasi Supabase Client
+
+Client Zigma menggunakan `@supabase/ssr` untuk mengelola cookie autentikasi lintas subdomain platform:
+
+```typescript title="Konfigurasi Client Supabase"
+import { createBrowserClient } from '@supabase/ssr';
+
+const supabaseUrl = import.meta.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+const isProd = typeof window !== "undefined" && window.location.hostname.endsWith("gameforsmart.com");
+
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: {
+        domain: isProd ? ".gameforsmart.com" : undefined,
+        path: "/",
+        sameSite: "lax",
+        secure: isProd,
+    }
+});
+```
+
+---
+
+## 4. Layanan Autentikasi Singleton
+
+Kelas `AuthService` bertindak sebagai singleton yang menangani alur sesi login pemain, validasi token OAuth, dan sinkronisasi status aktif lintas tab browser:
+
+```typescript title="Implementasi AuthService"
+import { supabase, Profile } from '../../lib/supabase';
+
+export class AuthService {
+    private static instance: AuthService;
+    private currentProfile: Profile | null = null;
+
+    static getInstance(): AuthService {
+        if (!AuthService.instance) {
+            AuthService.instance = new AuthService();
+        }
+        return AuthService.instance;
+    }
+
+    async isAuthenticated(): Promise<boolean> {
+        const { data: { session } } = await supabase.auth.getSession();
+        return !!session?.user;
+    }
+
+    getStoredProfile(): Profile | null {
+        return this.currentProfile;
+    }
+}
+
+export const authService = AuthService.getInstance();
+```
+
+---
+
+## 5. Menjalankan Server & Client
+
+Jalankan perintah berikut pada root project untuk memulai development server secara serentak:
 
 ```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_API_URL=http://localhost:3001
+npm run dev
 ```
 
-## Supabase Client Setup
-
-```ts title="src/lib/supabase.ts"
-import { createClient } from '@supabase/supabase-js';
-
-export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || '',
-  import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-);
-```
-
-## Struktur Project
-
-```
-zigma-game/
-├── .env.local
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-├── tailwind.config.js
-├── src/
-│   ├── main.tsx
-│   ├── App.tsx
-│   ├── lib/
-│   │   ├── supabase.ts
-│   │   ├── types.ts
-│   │   ├── api.ts
-│   │   └── scoreUpdateQueue.ts
-│   ├── hooks/
-│   │   ├── useRoom.ts
-│   │   └── useTimer.ts
-│   ├── pages/
-│   └── game/
-└── server/
-    └── src/
-        └── server.ts
-```
+* **Client Vite Dev Server**: Berjalan di `http://localhost:5173`
+* **Colyseus WebSocket Server**: Berjalan di `http://localhost:2567`
+* **Colyseus Monitor**: Dapat diakses di `http://localhost:2567/colyseus`
 
 Lanjutkan ke [Homepage & Dashboard →](/docs/tutorial/homepage-dashboard).

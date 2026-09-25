@@ -1,13 +1,118 @@
 ---
-title: Sistem Combat
-description: Mekanika quiz combat, damage, dan efek skill.
+title: Sistem Aksi & Combat
+description: Mekanika tebasan senjata 2D, AI musuh yang melarikan diri, kamera sinematik, dan transisi ke kuis.
 ---
 
-# Sistem Combat
+# Sistem Aksi & Combat
 
-Inti dari game adalah loop **jawab soal → serang lawan**. Setiap jawaban benar
-menghasilkan damage yang dihitung dari base attack, skill multiplier, dan defense
-lawan.
+Berbeda dengan game RPG turn-based konvensional, Zigma **tidak menggunakan bar HP, mana, atau perhitungan damage pertahanan lawan**. 
 
-Lihat implementasi lengkap di
-[**Tutorial: Sistem Kuis**](/docs/tutorial/player/sistem-kuis).
+Mekanika aksi dalam Zigma berfokus pada **eksplorasi peta real-time, pengejaran monster AI pembawa soal, tebasan senjata untuk memicu kuis, serta perebutan peti harta karun**.
+
+![Arena Gameplay & Aksi 2D Zigma](/images/gameplay.png)
+
+---
+
+## 1. Mekanika Tebasan Senjata (*Attack Cone Hitbox*)
+
+Pemain melancarkan serangan menggunakan tombol `SPACE` (Desktop), tombol tebas virtual di layar (Mobile), atau otomatis saat berjalan mendekati monster dalam mode *tap-to-move*.
+
+* **Jarak Serang (*Range*)**: Maksimal 50 pixel dari koordinat pemain ke monster.
+* **Sudut Toleransi (*Angle Tolerance*)**: Kerucut $60^\circ$ (`Math.PI / 3`) ke arah hadap karakter (`flipX`).
+* **Jeda Animasi**: Hitbox dievaluasi pada frame ke-200ms setelah animasi ayunan senjata (`tools_attack`) dimulai.
+
+```typescript title="Evaluasi Hitbox Serangan Pedang"
+performAttackHitbox(isLeft: boolean) {
+    const range = 50;
+    const angleTolerance = Math.PI / 3;
+
+    Object.keys(this.enemyEntities).forEach(id => {
+        const enemySprite = this.enemyEntities[id];
+        const enemyState = this.room.state.enemies.get(id);
+
+        if (enemySprite && enemyState && enemyState.isAlive) {
+            const dist = Phaser.Math.Distance.Between(
+                this.currentPlayer.x, this.currentPlayer.y,
+                enemySprite.x, enemySprite.y
+            );
+            if (dist <= range) {
+                const angleToEnemy = Phaser.Math.Angle.Between(
+                    this.currentPlayer.x, this.currentPlayer.y,
+                    enemySprite.x, enemySprite.y
+                );
+                const facingAngle = isLeft ? Math.PI : 0;
+                let diff = Phaser.Math.Angle.Wrap(angleToEnemy - facingAngle);
+
+                // Musuh berada di dalam kerucut serang depan karakter
+                if (Math.abs(diff) <= angleTolerance) {
+                    this.handleEnemyInteraction(id);
+                }
+            }
+        }
+    });
+}
+```
+
+---
+
+## 2. AI Musuh (*Steering Behavior Flee & Fatigue*)
+
+Monster musuh (`skeleton` dan `goblin`) bertindak sebagai pembawa soal kuis yang berkeliaran di arena permainan:
+
+1. **Deteksi Kedekatan**: Jika pemain mendekat dalam radius lari (`FLEE_RADIUS`), musuh akan langsung berbalik arah menjauhi pemain.
+2. **Penghindaran Dinding (*Wall Avoidance*)**: AI menghitung vektor arah lari bebas hambatan agar tidak menabrak rintangan pada map Tiled.
+3. **Mekanisme Kelelahan (*Fatigue Rest*)**: Jika musuh dipaksa berlari terus-menerus selama $> 10$ detik, musuh akan mengalami kelelahan dan berhenti beristirahat selama 5 detik (`restUntil = now + 5000`), memberi kesempatan bagi pemain untuk mengejar dan menebasnya.
+
+```typescript title="Logika Kelelahan AI Monster Sisi Server"
+// Cek kelelahan musuh saat lari lebih dari 10 detik
+if (now - enemy.fleeStartTime > 10000) {
+    enemy.isFleeing = false;
+    enemy.isResting = true;
+    enemy.restUntil = now + 5000; // Istirahat selama 5 detik
+    enemy.fleeStartTime = 0;
+    return; // Berhenti lari
+}
+```
+
+---
+
+## 3. Efek Kamera Sinematik & Transisi Kuis
+
+Ketika tebasan mengenai musuh, client memicu transisi dramatis:
+1. Kamera melepaskan kuncian (*stopFollow*) dari pemain.
+2. Kamera bergeser (*pan*) memusatkan pandangan ke koordinat musuh dalam 800ms.
+3. Kamera melakukan zoom besar (**`zoomTo(3.5)`**) dalam 1000ms.
+4. Modal antarmuka kuis (`QuizPopup`) muncul di atas canvas permainan, menampilkan soal dan 4 pilihan jawaban.
+
+```typescript title="Transisi Kamera Sinematik"
+startCombatCamera(targetX: number, targetY: number) {
+    if (this.isZooming) return;
+    this.isZooming = true;
+    this.cameras.main.stopFollow();
+    this.cameras.main.pan(targetX, targetY, 800, 'Power2');
+    this.cameras.main.zoomTo(3.5, 1000, 'Power2');
+}
+```
+
+---
+
+## 4. Dampak Jawaban Terhadap Monster & Skor
+
+* **Jawaban Benar**:
+  * Monster dikalahkan (`isAlive: false`) dan hilang dari arena.
+  * Skor pemain bertambah sebesar `100 / totalQuestions`.
+  * Kamera kembali zoom-out ke tampilan normal dan mengunci pemain kembali.
+* **Jawaban Salah**:
+  * Monster tidak hilang; monster terlepas dari pertempuran dan kembali berkeliaran.
+  * Skor pemain **tidak berkurang** (0 penalti).
+  * Kesalahan dicatat ke database untuk statistik akurasi, dan pemain diberi kesempatan memulihkan skor melalui peti harta karun.
+
+---
+
+## 5. Peti Harta Karun (*Chests & Buffs*)
+
+Peti harta karun tersebar di berbagai titik map Tiled dan dapat dibuka dengan mendekatinya dalam jarak `50 px` atau kurang:
+
+* **Speed Boost Buff**: Kecepatan gerak karakter meningkat +50% (dari 130 px/s menjadi 195 px/s) selama 5 detik.
+* **Retry Chest**: Jika pemain pernah menjawab salah sebelumnya, membuka peti akan memicu soal pemulihan dengan reward poin setengah dari nilai soal biasa.
+* **Siklus Respawn**: Peti yang telah diambil akan hilang dan muncul kembali secara acak setelah jeda 25–35 detik.

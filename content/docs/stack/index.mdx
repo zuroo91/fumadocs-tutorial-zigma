@@ -1,33 +1,62 @@
 ---
 title: Stack Teknologi
-description: Pilihan teknologi untuk membangun game.
+description: Pilihan teknologi dan dependensi nyata yang digunakan pada monorepo Zigma.
 ---
 
 # Stack Teknologi
 
+Arsitektur Zigma dibangun di atas model **Monorepo NPM Workspaces** (`client`, `server`, dan `shared`) dengan pemisahan tugas yang jelas antara rendering visual canvas 2D, antarmuka DOM, game server Colyseus, dan penyimpanan data Supabase.
+
 ```
-Frontend:    HTML5, CSS3, JavaScript (React.js/Vue.js)
-Backend:     Node.js + Express / Firebase
-Database:    Firebase Firestore / MongoDB
-Auth:        Firebase Authentication
-Realtime:    Socket.io / Firebase Realtime Database
-Hosting:     Vercel / Netlify (Frontend), Heroku (Backend)
-Game Engine: Canvas / Phaser.js / PixiJS
+Client (Frontend):  Phaser 3.80 (Canvas 2D), TypeScript, TailwindCSS v4, Vite 5, Colyseus.js
+Server (Backend):   Node.js, Express 4, Colyseus 0.15 (WebSocket), Redis Presence & Driver
+Shared:             @colyseus/schema (State & Entity Schema)
+Database & Auth:    Supabase PostgreSQL (@supabase/ssr, @supabase/supabase-js)
+Cache & Clustering: Redis (ioredis)
+Deployment:         PM2 Cluster Mode (2 instances), VPS Linux (Proxmox), GitLab CI/CD
 ```
 
-## Mengapa stack ini?
+---
 
-- **React + Vite** — HMR cepat dan build optimal. Cocok untuk SPA dengan banyak state.
-- **Firebase** — Auth + Firestore + Hosting jadi satu paket, gratis untuk MVP.
-- **Socket.io** — Sudah battle-tested untuk real-time multiplayer, fallback otomatis
-  ke long-polling jika WebSocket tidak tersedia.
-- **Zustand** — State management ringan (3KB) tanpa boilerplate Redux.
+## 1. Client (`client/package.json`)
 
-## Alternatif
+Frontend Zigma menggabungkan performa rendering canvas 2D pixel art dengan fleksibilitas UI overlay berbasis DOM HTML/CSS:
 
-| Komponen   | Alternatif                  | Trade-off                                    |
-| ---------- | --------------------------- | -------------------------------------------- |
-| Backend    | Supabase, Appwrite          | Self-hostable, SQL-based                     |
-| Realtime   | Firebase Realtime DB, Ably  | Vendor lock-in vs latency                    |
-| State      | Redux Toolkit, Jotai        | Lebih verbose vs lebih ergonomis             |
-| Game Engine| Phaser, PixiJS, Three.js    | Asset berat vs kontrol penuh                 |
+* **Phaser 3 (`v3.80.0`)**: Game engine 2D untuk memuat tilemap Tiled, merender layered sprites karakter dan monster, mengelola animasi idle/walk/attack, kamera dinamis, serta sistem partikel.
+* **Vite (`v5.0.0`)**: Build tool dan development server modern dengan Hot Module Replacement (HMR) cepat.
+* **TypeScript (`v5.2.2`)**: Type safety menyeluruh pada seluruh scene, manager, dan service.
+* **TailwindCSS (`v4.3.3`)**: Styling utility-first untuk semua modal dan overlay antarmuka di atas canvas Phaser (Lobby, QuizPopup, ResultCard, WaitingRoom).
+* **Colyseus.js (`v0.15.28`)**: Client library WebSocket resmi untuk menyambung ke game server, mendengarkan perubahan room state, dan mengirim input pemain.
+* **Supabase Client (`@supabase/ssr` & `@supabase/supabase-js`)**: Manajemen sesi autentikasi SSO dengan cookie domain `.gameforsmart.com`.
+* **i18next (`v26.3.5`)**: Sistem lokalisasi multi-bahasa (`id`, `en`, `ar`) dengan dukungan deteksi arah Right-to-Left (RTL).
+* **qrcode & html5-qrcode**: Generator QR Code di sisi host dan scanner kamera langsung di sisi pemain mobile.
+
+---
+
+## 2. Server (`server/package.json`)
+
+Backend Zigma bersifat **authoritative** — seluruh kalkulasi skor, pergerakan AI monster, dan verifikasi kuis dihitung di server:
+
+* **Node.js & Express (`v4.18.2`)**: HTTP server untuk API endpoint autentikasi, sinkronisasi hasil game (`/api/game/sync-results`), serta penyajian file statis hasil build client.
+* **Colyseus (`v0.15.0`)**: Framework multiplayer real-time berbasis WebSocket (`@colyseus/ws-transport`) dengan patch rate 50ms (20 update/detik).
+* **Redis Driver & Presence (`@colyseus/redis-driver`, `@colyseus/redis-presence`)**: Memungkinkan matchmaking dan routing room Colyseus tersinkronisasi antar-worker saat dijalankan dalam cluster PM2.
+* **ioredis (`v5.11.1`)**: Client Redis untuk caching dan session store.
+* **@supabase/supabase-js (`v2.98.0`)**: Akses backend dengan `service_role` key ke Supabase Utama (tabel `quizzes`, `game_sessions`) dan Supabase B (schema `zigma`).
+* **Zod (`v4.4.3`)**: Validasi skema runtime untuk payload data jaringan.
+
+---
+
+## 3. Shared (`shared/`)
+
+Paket shared membagikan tipe data dan skema state yang dikompilasi bersama oleh client dan server:
+
+* **@colyseus/schema (`v2.0.0`)**: Definisi skema biner otomatis (`GameState`, `Player`, `Enemy`, `Chest`, `SubRoom`, `Question`). State ini disinkronkan secara inkremental dari server ke setiap klien yang terhubung.
+
+---
+
+## 4. Alasan Pemilihan Arsitektur
+
+1. **Phaser 3 + HTML/CSS DOM**: Elemen permainan 2D (karakter, obstacle, kamera) membutuhkan efisiensi WebGL/Canvas, sedangkan formulir kuis dan tipografi kartu teks lebih responsif dirender menggunakan DOM HTML/CSS standar.
+2. **Colyseus vs Socket.io**: Colyseus menyediakan sistem delta-compression state otomatis melalui skema biner `@colyseus/schema`, menghilangkan kebutuhan menulis event pub-sub manual untuk setiap koordinat pergerakan entitas.
+3. **Redis Cluster Presence**: Mendukung horizontal scaling multi-core via PM2 cluster mode tanpa masalah *Session Not Found* saat pemain bergabung dengan room yang sama.
+4. **Supabase PostgreSQL**: Data kuis dan riwayat pertandingan tersimpan dalam database relasional terstruktur dengan dukungan query JSON untuk opsi soal.

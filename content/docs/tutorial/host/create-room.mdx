@@ -3,7 +3,7 @@ title: Create Room
 description: Alur dan cara kerja sistem Create Room.
 ---
 
-Berikut adalah alur lengkap mengenai sistem **Create Room** di Zigma berdasarkan kode sumber (*source code*) pada `client` dan `server`:
+Berikut adalah alur lengkap mengenai sistem **Create Room** di Zigma berdasarkan modul client dan server:
 
 ---
 
@@ -37,7 +37,7 @@ Zigma memiliki **2 cara** pembuatan room:
 ---
 
 ### 1. Konfigurasi & Pembuatan Room di Sisi Client
-**File:** [`client/src/scenes/host/[roomCode]/quizsetting/page.ts`](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/client/src/scenes/host/[roomCode]/quizsetting/page.ts#L624-L695)
+**Modul:** Antarmuka Pengaturan Kuis Host
 
 Ketika host menekan tombol konfirmasi pembuatan room:
 1. Menyiapkan objek payload `options` (PIN, durasi timer, batas soal, tingkat kesulitan, map, dll.).
@@ -46,7 +46,7 @@ Ketika host menekan tombol konfirmasi pembuatan room:
 4. Menyimpan data sesi baru (`currentSessionId`, `currentReconnectionToken`, `currentRoomCode`) ke `SessionStore` & `localStorage`.
 5. Melakukan transisi visual dan navigasi ke rute `/host/${roomCode}/lobby`.
 
-```typescript title="client/src/scenes/host/[roomCode]/quizsetting/page.ts"
+```typescript title="Alur Pembuatan Room di Sisi Client"
 const options = {
     roomCode: roomCode,          // 6-digit PIN acak
     sessionId: sessionId,        // 20-char XID database session
@@ -99,11 +99,11 @@ TransitionManager.close(() => {
 ---
 
 ### 2. Auto-Create Mode untuk Sesi Kompetisi
-**File:** [`client/src/scenes/lobby/page.ts`](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/client/src/scenes/lobby/page.ts#L1303-L1403)
+**Modul:** Penanganan Otomatis URL Kompetisi
 
 Jika URL dibuka dengan parameter kompetisi (misalnya tautan dari dashboard admin/guru), fungsi `handleHostAutoCreate()` langsung mengunduh kuis terkait dan membuat room tanpa melalui pemilihan manual:
 
-```typescript title="client/src/scenes/lobby/page.ts"
+```typescript title="Fungsi Auto-Create dari URL Parameter"
 private async handleHostAutoCreate() {
     const urlParams = new URLSearchParams(window.location.search);
     const quizId = urlParams.get('quizId');
@@ -136,7 +136,7 @@ private async handleHostAutoCreate() {
 ---
 
 ### 3. Inisialisasi Server Colyseus (`onCreate`)
-**File:** [`server/src/rooms/GameRoom.ts`](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/server/src/rooms/GameRoom.ts#L146-L215)
+**Modul:** Server Room Colyseus
 
 Di sisi server, fungsi `onCreate` bertanggung jawab atas inisialisasi lingkungan permainan:
 
@@ -144,7 +144,7 @@ Di sisi server, fungsi `onCreate` bertanggung jawab atas inisialisasi lingkungan
 2. **Patch Rate Jaringan:** Diatur ke `50ms` (20 update/detik) demi keseimbangan antara pergerakan mulus dan efisiensi memori.
 3. **Keamanan Soal (*Server-Side Fetching*):** Soal kuis diambil langsung dari Supabase di server, **bukan dari client**. Kunci jawaban disimpan secara privat di server (`questionCorrectAnswers`) dan tidak disinkronkan ke client agar tidak bisa dibocorkan melalui Network tab browser.
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Inisialisasi GameRoom Sisi Server"
 async onCreate(options: any) {
     this.setState(new GameState());
 
@@ -183,7 +183,7 @@ async onCreate(options: any) {
 ---
 
 ### 4. Setup Metadata, Sub-Rooms, & Simpan ke Database
-**File:** [`server/src/rooms/GameRoom.ts`](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/server/src/rooms/GameRoom.ts#L393-L426) & ([baris 3335–3365](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/server/src/rooms/GameRoom.ts#L3335-L3365))
+**Modul:** Setup Metadata & Sub-Rooms
 
 Server kemudian membagi kapasitas room, mengatur metadata publik untuk lobby, dan membuat baris record awal di database:
 
@@ -191,7 +191,7 @@ Server kemudian membagi kapasitas room, mengatur metadata publik untuk lobby, da
 2. **Inisialisasi Sub-Rooms:** Kapasitas lobi maksimum adalah 51 pemain, yang dipecah ke dalam beberapa sub-room/pulau (misalnya per 4-8 pemain tergantung difficulty).
 3. **Simpan Sesi Awal ke Database (`game_sessions`):** Membuat record berstatus `"waiting"` sebelum pemain mana pun masuk.
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Setup Metadata & Simpan Sesi Database"
     // 1. Simpan metadata agar bisa dicari pemain di lobby
     this.setMetadata({
         roomCode: this.state.roomCode,

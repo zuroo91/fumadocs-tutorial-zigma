@@ -1,13 +1,105 @@
 ---
 title: Deploy & Monitoring
-description: Testing, CI/CD, dan monitoring performa.
+description: Panduan deployment produksi monorepo Zigma menggunakan PM2 Cluster, Redis, dan GitLab CI/CD.
 ---
 
 # Deploy & Monitoring
 
-- **Frontend** → Vercel (auto-deploy dari GitHub)
-- **Socket server** → Railway atau Fly.io
-- **Firebase** → sudah di-host oleh Google
-- **Monitoring** → Sentry untuk error tracking, PostHog untuk analytics
+Zigma dirancang untuk berjalan pada lingkungan server Linux (VPS / Proxmox Container) dengan arsitektur multi-instance yang andal.
 
-Lihat panduan lengkap di [**Tutorial: Deploy & Testing**](/docs/tutorial/deploy-testing).
+```
+GitLab Repository ──(GitLab CI/CD)──> Build (Client & Server)
+                                            │
+                                            ▼
+                                   Deploy ke VPS Server
+                                  (/www/wwwroot/Zigma)
+                                            │
+               ┌────────────────────────────┴────────────────────────────┐
+               ▼                                                         ▼
+     PM2 Cluster Worker 1                                      PM2 Cluster Worker 2
+      (Port 2567 / Express)                                     (Port 2567 / Express)
+               │                                                         │
+               └───────────────> Redis Presence & Driver <───────────────┘
+                                         │
+                                         ▼
+                               Supabase PostgreSQL DB
+```
+
+---
+
+## 1. Konfigurasi PM2 Cluster (`ecosystem.config.js`)
+
+Game server dijalankan menggunakan **PM2 dalam mode cluster (2 instances)** untuk memaksimalkan utilisasi multi-core CPU.
+
+Matchmaking dan routing room antar-worker disinkronkan secara terpusat oleh **Redis Presence & Driver**, sehingga pemain dengan kode PIN yang sama tidak akan mendarat di worker yang salah:
+
+```javascript title="ecosystem.config.js"
+const DEPLOY_PATH = "/www/wwwroot/Zigma";
+const NODE_BIN = "/www/server/nodejs/v24.14.1/bin/node";
+
+module.exports = {
+  apps: [
+    {
+      name: "Zigma",
+      cwd: DEPLOY_PATH + "/server",
+      script: DEPLOY_PATH + "/server/build/server/src/server.js",
+      interpreter: NODE_BIN,
+      instances: 2,
+      exec_mode: "cluster",
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "3G",
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      error_file: "/www/wwwlogs/Zigma-error.log",
+      out_file: "/www/wwwlogs/Zigma-out.log",
+      env: {
+        NODE_ENV: "production",
+        PORT: 2567,
+      },
+      kill_timeout: 3000,
+      wait_ready: true,
+      listen_timeout: 10000,
+    },
+  ],
+};
+```
+
+---
+
+## 2. Penyajian File Statis Client
+
+Pada lingkungan produksi:
+1. Client di-build oleh Vite: `npm run build --prefix client`.
+2. Hasil build disalin ke folder `server/public`.
+3. Server Express menyajikan file client tersebut secara statis melalui `express.static(clientBuildPath)`:
+
+```typescript title="Penyajian Client Statis di Server Express"
+const clientBuildPath = path.join(process.cwd(), "public");
+app.use(express.static(clientBuildPath));
+
+// Endpoint robots & sitemap SEO
+app.get("/robots.txt", (req, res) => res.sendFile(path.join(clientBuildPath, "seo", "robots.txt")));
+app.get("/sitemap.xml", (req, res) => res.sendFile(path.join(clientBuildPath, "seo", "sitemap.xml")));
+```
+
+---
+
+## 3. Pipeline CI/CD (`.gitlab-ci.yml`)
+
+Deployment otomatis dikelola oleh **GitLab CI/CD**:
+* **Branch `development`**: Memicu build dan auto-deploy otomatis ke server development (`server4`).
+* **Branch `main`**: Memicu build produksi dengan langkah deploy manual ke server produksi (`server5`).
+
+Artefak yang disinkronkan ke server target meliputi:
+* `node_modules/` (hasil npm workspaces di root)
+* `server/build/` (hasil kompilasi TypeScript server)
+* `server/public/` (hasil build Vite client)
+* `shared/` (skema kompilasi bersama)
+
+---
+
+## 4. Monitoring Colyseus
+
+Zigma menyediakan antarmuka monitoring Colyseus bawaan untuk mengawasi jumlah room aktif, penggunaan memori, dan daftar client yang terhubung secara real-time melalui rute:
+* **`/colyseus`**: Dikelola oleh `@colyseus/monitor` di `server.ts`.

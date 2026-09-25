@@ -27,18 +27,18 @@ const phases = [
     border: 'border-violet-500/30 hover:border-violet-400',
   },
   {
-    name: 'Karakter & Stats',
+    name: 'Karakter & Tampilan',
     description:
-      'Pelajari cara mendesain karakter (Warrior, Mage, Ranger, Healer), stats, dan skill tree.',
+      'Kustomisasi karakter Human 2D dengan layered sprites dan pilihan gaya rambut (HAIR_OPTIONS).',
     href: '/docs/karakter',
     icon: Shield,
     color: 'from-emerald-500/20 to-teal-500/20',
     border: 'border-emerald-500/30 hover:border-emerald-400',
   },
   {
-    name: 'Sistem Combat',
+    name: 'Sistem Combat & Aksi',
     description:
-      'Mekanika quiz combat: menjawab soal untuk menyerang, cooldown skill, dan damage calculation.',
+      'Mekanika tebasan 2D, AI musuh yang melarikan diri (flee), kamera sinematik, dan transisi ke kuis.',
     href: '/docs/combat',
     icon: Zap,
     color: 'from-orange-500/20 to-red-500/20',
@@ -47,7 +47,7 @@ const phases = [
   {
     name: 'Multiplayer',
     description:
-      'Real-time matchmaking, arena battle, dan sinkronisasi state antar pemain dengan Socket.io.',
+      'Sinkronisasi real-time WebSocket dengan Colyseus 0.15, partisi sub-room pulau, dan interpolasi LERP.',
     href: '/docs/multiplayer',
     icon: Globe,
     color: 'from-cyan-500/20 to-sky-500/20',
@@ -56,8 +56,8 @@ const phases = [
   {
     name: 'Progress & Rewards',
     description:
-      'XP, leveling, achievement, daily quest, dan reward system untuk retensi pemain.',
-    href: '/docs/progress',
+      'Formula skor proporsional 100/N, bonus peti harta karun (chest), dan pencatatan akurasi.',
+    href: '/docs/tutorial/host/progress-rewards',
     icon: Trophy,
     color: 'from-yellow-500/20 to-amber-500/20',
     border: 'border-yellow-500/30 hover:border-yellow-400',
@@ -65,8 +65,8 @@ const phases = [
   {
     name: 'Leaderboard',
     description:
-      'Global leaderboard, season system, dan rank tier untuk kompetisi antar pemain.',
-    href: '/docs/leaderboard',
+      'Podium juara 3 besar dan klasemen skor akhir pertandingan di layar Host.',
+    href: '/docs/tutorial/host/leaderboard-ranking',
     icon: BarChart3,
     color: 'from-pink-500/20 to-rose-500/20',
     border: 'border-pink-500/30 hover:border-pink-400',
@@ -74,7 +74,7 @@ const phases = [
   {
     name: 'Deploy & Monitoring',
     description:
-      'Testing, CI/CD, deploy ke Vercel/Heroku, dan monitoring performa dengan Sentry.',
+      'Pengujian dengan Bot Simulator, PM2 cluster mode, Redis presence, dan pipeline GitLab CI/CD.',
     href: '/docs/deploy',
     icon: Server,
     color: 'from-red-500/20 to-orange-500/20',
@@ -128,7 +128,7 @@ export default function HomePage() {
         </div>
 
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4">
-          Bangun Game Kuis RPG{' '}
+          Bangun Game Kuis 2D Action{' '}
           <span
             style={{
               background: 'linear-gradient(135deg, #6366f1, #a855f7, #ec4899)',
@@ -141,8 +141,8 @@ export default function HomePage() {
         </h1>
 
         <p className="text-lg text-fd-muted-foreground max-w-2xl mx-auto mb-8">
-          Panduan teknis lengkap membangun game kuis RPG dengan sistem combat, karakter, dan
-          multiplayer real-time. Dari setup hingga deploy.
+          Panduan teknis lengkap membangun game kuis aksi 2D dengan Phaser 3, Colyseus WebSocket, dan
+          Supabase. Dari setup monorepo hingga deployment PM2 cluster.
         </p>
 
         <div className="flex flex-wrap justify-center gap-3">
@@ -232,7 +232,7 @@ export default function HomePage() {
             Modul Game
           </h2>
           <Link
-            href="/docs"
+            href="/docs/tutorial"
             className="text-sm text-fd-muted-foreground hover:text-fd-primary transition-colors"
           >
             Lihat Semua →

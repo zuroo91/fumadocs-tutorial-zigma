@@ -5,7 +5,9 @@ description: Sistem skor server-side Zigma — formula, chest bonus, deteksi sel
 
 # Scoring & Rewards
 
-Skor di Zigma bersifat **server-side dan authoritative** — semua kalkulasi dilakukan di `GameRoom.ts` di server, bukan di client. Skor disimpan di **Colyseus Player Schema** dan disinkronkan real-time ke seluruh klien. Rentang skor: **0 – 100**.
+# Scoring & Rewards
+
+Skor di Zigma bersifat **server-side dan authoritative** — semua kalkulasi dilakukan di server Colyseus, bukan di client. Skor disimpan di **Colyseus Player Schema** dan disinkronkan real-time ke seluruh klien. Rentang skor: **0 – 100**.
 
 ---
 
@@ -13,7 +15,7 @@ Skor di Zigma bersifat **server-side dan authoritative** — semua kalkulasi dil
 
 Semua data skor disimpan dalam Colyseus `Player` schema yang disinkronkan real-time:
 
-```typescript title="server/src/shared/state.ts"
+```typescript title="Schema Player Colyseus"
 export class Player extends Schema {
     @type("number") score: number = 0;              // Skor utama (0–100)
     @type("number") correctAnswers: number = 0;     // Jumlah jawaban benar
@@ -31,7 +33,7 @@ export class Player extends Schema {
 
 Satu soal benar memberikan poin yang **proporsional terhadap total limit soal**, sehingga apapun jumlah soalnya, skor maksimal selalu **100**:
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Kalkulasi Skor Jawaban Benar"
 private applyCorrectAnswer(client: Client, data: any) {
     const player = this.getPlayerByClient(client);
     if (player && !player.isFinished) {
@@ -74,7 +76,7 @@ private applyCorrectAnswer(client: Client, data: any) {
 
 Jawaban salah **tidak mengurangi skor**, hanya menambah counter `wrongAnswers` dan mencatat jawaban ke database untuk statistik:
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Penanganan Jawaban Salah"
 private applyWrongAnswer(client: Client, data: any) {
     const player = this.getPlayerByClient(client);
     if (player && !player.isFinished) {
@@ -102,7 +104,7 @@ private applyWrongAnswer(client: Client, data: any) {
 
 Pemain dapat menemukan **Chest** di peta arena. Jika berhasil menjawab soal dalam chest dengan benar, mereka mendapatkan **bonus poin setengah dari nilai normal**. Validasi jawaban dilakukan server-side — klien tidak bisa curang:
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Kalkulasi Bonus Poin Chest"
 // Handler pesan dari klien
 this.onMessage("addScoreFromChest", (client, data) => {
     if (this.state.isGameOver) return;
@@ -141,7 +143,7 @@ private applyChestCorrectAnswer(client: Client, data: any) {
 
 Setiap kali `answeredQuestions >= totalQuestions`, server langsung menandai pemain sebagai selesai dan mencatat `finishTime` sebagai tie-breaker:
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Deteksi Status Selesai Player"
 // Di dalam applyCorrectAnswer & applyWrongAnswer (setelah update counter)
 if (player.answeredQuestions >= totalQuestions && !player.isFinished) {
     player.isFinished = true;
@@ -172,7 +174,7 @@ Saat kuis berakhir (timer habis atau semua pemain selesai), server menghitung ra
 1. **Skor tertinggi dahulu** (`score DESC`)
 2. **Jika skor sama → yang lebih cepat selesai menang** (`finishTime ASC`)
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Perhitungan Ranking Final Sisi Server"
 // endGame() — dipanggil saat timer habis atau semua pemain selesai
 
 // Tandai pemain yang belum selesai sebagai isIncomplete

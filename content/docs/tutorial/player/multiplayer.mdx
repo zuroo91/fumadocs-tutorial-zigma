@@ -1,85 +1,140 @@
 ---
 title: Mode Multipemain
-description: Sistem room host dan join secara real-time.
+description: Sinkronisasi real-time WebSocket client Colyseus, event listener pemain, dan pengiriman input pergerakan.
 ---
 
-# Mode Multipemain
+# Mode Multipemain (Player Client)
 
-Pemain bisa membuat room (HOST) atau bergabung ke room yang sudah ada (JOIN).
+Pada sisi pemain, koneksi multiplayer ke server Colyseus dikelola melalui instance `Room` dari library **`colyseus.js`**. 
 
-## Flow Permainan
+Klien tidak melakukan polling HTTP secara berkala, melainkan menerima siaran perubahan state (*delta updates*) secara langsung melalui protokol WebSocket.
 
+---
+
+## 1. Menghubungkan Klien ke Room Colyseus
+
+Ketika pemain menyelesaikan proses validasi di halaman `/join`, fungsi `joinById` dipanggil untuk menyambungkan klien ke room permainan:
+
+```typescript title="Koneksi Klien ke Server Colyseus"
+import { Client } from 'colyseus.js';
+
+// Inisialisasi klien Colyseus
+const client = new Client(import.meta.env.VITE_SERVER_URL || 'http://localhost:2567');
+
+const joinOptions = {
+    name: nickname,
+    userId: profile.id,
+    avatarUrl: profile.avatar_url || "",
+    hairId: savedHairId ? parseInt(savedHairId) : 0,
+    isHost: false
+};
+
+// Bergabung ke room yang sudah dibuat oleh Host
+const room = await client.joinById(targetRoom.roomId, joinOptions);
+
+// Simpan identitas sesi ke SessionStore
+SessionStore.set('currentSessionId', room.sessionId, 'player');
+SessionStore.set('currentReconnectionToken', room.reconnectionToken, 'player');
+localStorage.setItem('currentRoomCode', roomCode);
 ```
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   HOME PAGE  │  │  HOST GAME   │  │ JOIN GAME    │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │
-       │           ┌─────▼─────┐     ┌─────▼─────┐
-       │           │  /host    │     │  /join    │
-       │           │  Setup    │     │  Room Code│
-       │           │  Lobby    │     │  Profil   │
-       │           └─────┬─────┘     └─────┬─────┘
-       │                 │                 │
-       │           ┌─────▼─────────────────▼─────┐
-       │           │  WAITING ROOM                │
-       │           │  Tunggu host mulai game      │
-       │           └──────────────┬───────────────┘
-       │                          │
-       │                    ┌─────▼─────┐
-       │                    │ QUIZ GAME │
-       │                    │ 15s/soal  │
-       │                    │ 4 opsi    │
-       │                    └─────┬─────┘
-       │                          │
-       │                    ┌─────▼─────┐
-       │                    │  RESULT   │
-       │                    │  Podium   │
-       │                    └───────────┘
+
+---
+
+## 2. Event Listener Entitas Pemain di GameScene
+
+Di dalam scene permainan, klien mendengarkan perubahan daftar pemain yang ada di room:
+
+```typescript title="Event Listener Entitas Pemain"
+// 1. Pemain baru masuk ke arena
+this.room.state.players.onAdd((player: any, sessionId: string) => {
+    if (sessionId === this.mySessionId) {
+        // Inisialisasi avatar pemain lokal
+        this.currentPlayer = this.createPlayerContainer(player);
+        this.cameras.main.startFollow(this.currentPlayer, true, 0.2, 0.2);
+    } else {
+        // Inisialisasi avatar pemain lain
+        const otherPlayer = this.createPlayerContainer(player);
+        this.playerEntities[sessionId] = otherPlayer;
+    }
+
+    // Dengarkan perubahan koordinat pemain lain
+    player.onChange(() => {
+        const entity = this.playerEntities[sessionId];
+        if (entity) {
+            entity.setData('targetX', player.x);
+            entity.setData('targetY', player.y);
+        }
+    });
+});
+
+// 2. Pemain keluar atau terputus
+this.room.state.players.onRemove((player: any, sessionId: string) => {
+    const entity = this.playerEntities[sessionId];
+    if (entity) {
+        entity.destroy();
+        delete this.playerEntities[sessionId];
+    }
+});
 ```
 
-## Room Management
+---
 
-Room disimpan di Supabase (tabel `rooms`):
+## 3. Pengiriman Input Pergerakan (*Throttled Input*)
 
-```ts title="src/lib/api.ts"
-export async function createRoom(hostId: string, quizId: string, timePerQuestion: number, totalQuestions: number) {
-  const response = await fetch(`${API_URL}/rooms`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hostId, quizId, timePerQuestion, totalQuestions }),
-  });
-  return response.json();
+Untuk mengoptimalkan penggunaan jaringan dan mencegah banjir paket (*packet flooding*), input koordinat pemain lokal dikirim dengan batas interval waktu (`networkSendRate` = 100ms):
+
+```typescript title="Pengiriman Input Pergerakan Throttled"
+update(time: number, delta: number) {
+    if (!this.room || !this.isGameReady || this.isAttacking) return;
+
+    // Hitung posisi baru berdasarkan keyboard, joystick, atau click-to-move
+    const newX = this.currentPlayer.x + (velocity.x * speed * (delta / 1000));
+    const newY = this.currentPlayer.y + (velocity.y * speed * (delta / 1000));
+
+    // Validasi rintangan dinding (wall-sliding)
+    this.movePlayerWithCollision(newX, newY);
+
+    // Kirim pembaruan posisi ke server Colyseus setiap 100ms
+    const now = Date.now();
+    if (now - this.lastNetworkSendTime >= this.networkSendRate) {
+        this.lastNetworkSendTime = now;
+        this.room.send("movePlayer", {
+            x: Math.round(this.currentPlayer.x),
+            y: Math.round(this.currentPlayer.y)
+        });
+    }
 }
 ```
 
-## Realtime Subscription
+---
 
-```ts title="src/hooks/useRoom.ts"
-export const useRoom = (roomCode: string) => {
-  const [room, setRoom] = useState<Room | null>(null);
-  const [participants, setParticipants] = useState<Participant[]>([]);
+## 4. Sinkronisasi Countdown & Akhir Game
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const data = await getRoom(roomCode);
-      setRoom(data.room);
-      setParticipants(data.participants);
-    };
-    fetchData();
-    const interval = setInterval(fetchData, 2000);
-    return () => clearInterval(interval);
-  }, [roomCode]);
+Klien mendengarkan event waktu dan status akhir permainan secara otomatis dari server:
 
-  return { room, participants, loading, refetch: fetchData };
-};
+```typescript title="Sinkronisasi Listener Waktu & Game Ended"
+// A. Hitung mundur 10 detik di awal permainan
+this.room.state.listen("countdown", (val: number) => {
+    if (val > 0) {
+        TransitionManager.setCountdownText(val.toString());
+        AudioManager.getInstance().playCountdownSFX();
+    } else if (val === 0) {
+        TransitionManager.setCountdownText("GO!");
+        this.isGameReady = true; // Buka kunci kontrol pemain
+    }
+});
+
+// B. Notifikasi akhir permainan dari server
+this.room.onMessage("gameEnded", (data: { rankings: any[] }) => {
+    this.isEnding = true;
+    TransitionManager.close(() => {
+        // Berpindah ke ResultManager untuk melihat kartu skor personal
+        import('../results/page').then((m) => {
+            const manager = new m.ResultManager();
+            manager.start({ room: this.room, leaderboardData: data.rankings });
+        });
+    });
+});
 ```
 
-## Status Room
-
-| Status | Deskripsi |
-| ------ | --------- |
-| `waiting` | Menunggu pemain bergabung |
-| `playing` | Game sedang berlangsung |
-| `finished` | Game selesai |
-
-Lanjutkan ke [Scoring & Rewards →](/docs/tutorial/host/progress-rewards).
+Lanjutkan ke [Sistem Gameplay →](/docs/tutorial/player/sistem-gameplay) atau [Sistem Quiz →](/docs/tutorial/player/sistem-kuis).

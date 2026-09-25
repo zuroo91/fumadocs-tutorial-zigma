@@ -10,7 +10,7 @@ Berikut adalah alur **Join Session** beserta kodenya secara langsung:
 ### 1. Validasi Input PIN 6-Digit & Autentikasi Pemain
 Sebelum melakukan koneksi jaringan, input kode room diperiksa apakah berupa 6 digit alfanumerik dan profil pemain yang sedang login dimuat dari penyimpanan lokal:
 
-```typescript title="client/src/scenes/lobby/page.ts"
+```typescript title="Validasi Input PIN & Autentikasi"
 const roomCode = code?.trim().toUpperCase();
 if (!roomCode || roomCode.length !== 6) {
     this.showJoinFieldError('roomcode', i18n.t('lobby.join_errors.invalid_code'));
@@ -35,7 +35,7 @@ const nickname = (nameOverride || profile.nickname || profile.fullname || 'Playe
 ### 2. Pencarian Room & Proteksi *Late Join*
 Client mencari ketersediaan room di server Colyseus berdasarkan metadata `roomCode`. Jika pertandingan sudah berjalan (`isStarted: true`), pemain baru ditolak untuk bergabung:
 
-```typescript title="client/src/scenes/lobby/page.ts"
+```typescript title="Pencarian Room & Proteksi Late Join"
 // Cari room aktif di Colyseus
 const rooms = await this.client.getAvailableRooms("game_room");
 const targetRoom = rooms.find(r => r.metadata && r.metadata.roomCode === roomCode);
@@ -60,7 +60,7 @@ if (targetRoom.metadata && targetRoom.metadata.isStarted) {
 ### 3. Pre-Check Whitelist Kompetisi
 Jika room merupakan sesi kompetisi terproteksi, client mengecek apakah ID user ada di dalam daftar `allowed_user_ids` database Supabase:
 
-```typescript title="client/src/scenes/lobby/page.ts"
+```typescript title="Pengecekan Whitelist Kompetisi"
 const dbSessionId = targetRoom.metadata?.sessionId;
 
 if (dbSessionId && dbSessionId !== 'undefined' && dbSessionId !== 'null') {
@@ -93,7 +93,7 @@ if (dbSessionId && dbSessionId !== 'undefined' && dbSessionId !== 'null') {
 ### 4. Eksekusi Join & Penyimpanan Kredensial Sesi
 Client memuat preferensi karakter (`player_hair_id`), menggabungkan payload opsi join, menyambung ke room Colyseus via `joinById`, dan menyimpan token pemulihan (*reconnection token*):
 
-```typescript title="client/src/scenes/lobby/page.ts"
+```typescript title="Eksekusi Join & Simpan Sesi"
 const savedHairId = localStorage.getItem('player_hair_id');
 
 const joinOptions = {
@@ -129,7 +129,7 @@ TransitionManager.transitionTo(() => {
 ### 5. Verifikasi Otoritatif di Sisi Server (`onAuth`)
 Server Colyseus menjalankan `onAuth` sebelum koneksi WebSocket diizinkan. Server memverifikasi token bearer (jika ada) dan memastikan pemain tidak melewati whitelist kompetisi:
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Verifikasi Server-Side onAuth"
 async onAuth(client: Client, options: any, request?: import("http").IncomingMessage) {
     const pinToQuery = this.state.roomCode || options.roomCode || this.roomId;
     const authInfo = await gameSessionStore.getAuthInfoByPin(pinToQuery);
@@ -162,7 +162,7 @@ async onAuth(client: Client, options: any, request?: import("http").IncomingMess
 ### 6. Pengecekan *Late Join* & Spawn Karakter di Server (`onJoin`)
 Setelah lolos `onAuth`, server mengeksekusi `onJoin` untuk memasukkan pemain ke dalam state permainan, menentukan koordinat spawn dari map Tiled, serta mengalokasikan sub-room:
 
-```typescript title="server/src/rooms/GameRoom.ts"
+```typescript title="Penanganan Server-Side onJoin"
 async onJoin(client: Client, options: any) {
     const userId = options.userId;
 
@@ -209,7 +209,7 @@ async onJoin(client: Client, options: any) {
 ### 7. Pemulihan Sesi Otomatis Saat Refresh (*Token Reconnect*)
 Jika koneksi internet pemain terputus atau pemain me-refresh halaman browser, client memulihkan koneksi menggunakan `reconnectionToken` tanpa kehilangan status permainan:
 
-```typescript title="client/src/utils/roomRestore.ts"
+```typescript title="Pemulihan Sesi via Token Reconnect"
 // Jalur cepat: Token reconnect (bekerja meski room sudah locked)
 const token = SessionStore.get('currentReconnectionToken', role);
 if (token) {

@@ -1,85 +1,100 @@
 ---
 title: Sistem Quiz
-description: "Mekanik kuis: timer, soal, opsi jawaban, dan skor."
+description: Mekanika modal interaktif kuis, batas waktu, opsi jawaban teks/gambar, dan validasi server-side.
 ---
 
 # Sistem Quiz
 
-Inti dari game: **jawab soal → dapat skor → selesaikan semua soal**.
+Inti dari permainan Zigma adalah **eksplorasi arena $\rightarrow$ serang monster $\rightarrow$ jawab kuis $\rightarrow$ peroleh skor**. 
 
-## Game State
+Ketika pemain menebas monster musuh di peta 2D, kamera melakukan zoom dramatis dan antarmuka **`QuizPopup`** muncul di layar.
 
-```tsx title="src/pages/QuizGamePage.tsx"
-const QuizGamePage: React.FC = () => {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(15);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [showResult, setShowResult] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
+![Antarmuka Modal Kuis (QuizPopup)](/images/sistem-kuis.png)
 
-  // 15 detik per soal
-  // +100 poin per jawaban benar
-  // + time bonus (timeLeft * 10)
-};
-```
+---
 
-## Timer
+## 1. Antarmuka Modal Kuis (QuizPopup)
 
-Setiap soal memiliki timer **15 detik**. Jika waktu habis, soal dianggap salah.
+Komponen `QuizPopup` dirender sebagai modal overlay di atas canvas Phaser:
 
-```tsx
-useEffect(() => {
-  if (timeLeft > 0 && !showResult && !loading) {
-    const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-    return () => clearTimeout(timer);
-  } else if (timeLeft === 0 && !showResult) {
-    handleAnswer(-1); // Salah
-  }
-}, [timeLeft, showResult, loading]);
-```
+* **Teks & Gambar Soal**: Mendukung soal teks biasa maupun soal yang dilengkapi ilustrasi gambar (`imageUrl`).
+* **Jenis Pilihan Jawaban**:
+  * Pilihan ganda teks (A, B, C, D)
+  * Pilihan ganda gambar (*image options*)
+* **Indikator Progres**: Menampilkan nomor soal saat ini terhadap total batas soal (misal: `Soal 3 / 10`).
 
-## Jawaban & Skor
-
-```tsx
-const handleAnswer = async (answerIndex: number) => {
-  const correct = answerIndex === questions[currentIndex]?.correctAnswer;
-  setIsCorrect(correct);
-  if (correct) {
-    const timeBonus = Math.floor(timeLeft * 10);
-    setScore(prev => prev + 100 + timeBonus);
-  }
-  setShowResult(true);
-
-  setTimeout(async () => {
-    if (currentIndex + 1 < questions.length) {
-      setCurrentIndex(prev => prev + 1);
-      setSelectedAnswer(null);
-      setShowResult(false);
-      setTimeLeft(15);
-    } else {
-      // Selesai → ke halaman result
+```typescript title="Modul Antarmuka QuizPopup"
+export class QuizPopup {
+    show(question: any, onAnswer: (answerIndex: number) => void) {
+        this.renderQuestionContent(question);
+        this.renderOptions(question.options, onAnswer);
+        this.container.classList.remove('hidden');
     }
-  }, 1500);
-};
+}
 ```
 
-## Soal
+---
 
-Setiap soal memiliki 4 opsi jawaban (A, B, C, D).
+## 2. Pengiriman Jawaban dari Client
 
-```tsx
-{currentQuestion.options.map((option, index) => (
-  <button
-    key={index}
-    onClick={() => handleAnswer(index)}
-    disabled={selectedAnswer !== null}
-  >
-    <span>{String.fromCharCode(65 + index)}.</span>
-    {option}
-  </button>
-))}
+Ketika pemain memilih salah satu opsi jawaban:
+1. Tombol pilihan jawaban langsung dinonaktifkan (`disabled = true`) untuk mencegah *double submission*.
+2. Client mengirim sinyal `answerQuestion` ke server Colyseus dengan ID soal dan indeks jawaban yang dipilih.
+3. Client menunggu respon evaluasi dari server sebelum menutup modal atau menampilkan efek visual.
+
+```typescript title="Pengiriman Sinyal Jawaban Client"
+handleAnswerSelect(answerIndex: number) {
+    if (this.isSubmittingAnswer) return;
+    this.isSubmittingAnswer = true;
+
+    // Kirim jawaban ke server Colyseus untuk divalidasi
+    this.room.send("answerQuestion", {
+        questionId: this.activeQuestionId,
+        answerId: answerIndex,
+        isFromChest: this.isChestPopupVisible
+    });
+}
 ```
 
-Lanjutkan ke [Mode Multipemain →](/docs/tutorial/player/multiplayer).
+---
+
+## 3. Validasi Otoritatif di Sisi Server
+
+Server Colyseus menerima pesan `answerQuestion` dan membandingkan jawaban pemain dengan kunci jawaban privat yang disimpan di memori server:
+
+```typescript title="Validasi Otoritatif di Sisi Server"
+this.onMessage("answerQuestion", (client, data) => {
+    if (this.state.isGameOver) return;
+
+    // Validasi kunci jawaban di sisi server
+    const isCorrect = this.isAnswerCorrect(data.questionId, data.answerId);
+
+    if (isCorrect) {
+        // Berikan skor proporsional dan tandai monster mati
+        this.applyCorrectAnswer(client, data);
+        client.send("answerResult", { correct: true, questionId: data.questionId });
+    } else {
+        // Catat kesalahan untuk statistik (skor tidak dikurangi)
+        this.applyWrongAnswer(client, data);
+        client.send("answerResult", { correct: false, questionId: data.questionId });
+    }
+});
+```
+
+---
+
+## 4. Efek Visual Setelah Menjawab
+
+Setelah menerima pesan `answerResult` dari server:
+* **Jika Benar**:
+  * Opsi yang dipilih menyala hijau.
+  * Audio SFX sukses diputar (`AudioManager.getInstance().playSFX('sfx_correct')`).
+  * Monster pembawa soal musnah dari arena (`enemy.isAlive = false`).
+  * Modal kuis tertutup otomatis setelah jeda singkat (600ms).
+* **Jika Salah**:
+  * Opsi yang dipilih menyala merah.
+  * Audio SFX salah diputar (`AudioManager.getInstance().playSFX('sfx_wrong')`).
+  * Monster melepaskan diri dan kembali lari menjauh.
+  * Pemain dapat mencoba memulihkan nilai soal tersebut bila menemukan peti harta karun (*chest*).
+
+Lanjutkan ke [Scoring & Rewards →](/docs/tutorial/host/progress-rewards) atau [Sistem Result →](/docs/tutorial/player/sistem-result).

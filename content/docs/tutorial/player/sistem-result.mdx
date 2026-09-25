@@ -3,7 +3,7 @@ title: Sistem Result
 description: Alur dan cara kerja sistem Player Result setelah kuis selesai.
 ---
 
-Sistem **Player Result** (halaman hasil personal pemain setelah menyelesaikan kuis) dikelola oleh class **`ResultManager`** pada file [`client/src/scenes/player/[roomCode]/results/page.ts`](file:///c:/Users/ZUHRO/MultiplayerGameQuiz/client/src/scenes/player/[roomCode]/results/page.ts).
+Sistem **Player Result** (halaman hasil personal pemain setelah menyelesaikan kuis) dikelola oleh class **`ResultManager`** pada modul hasil permainan Player.
 
 Halaman ini menampilkan kartu ringkasan skor dan pencapaian individu pemain secara interaktif dalam orientasi *portrait* di perangkat mobile/desktop.
 
@@ -15,7 +15,7 @@ Berikut analisis arsitektur dan alur kerjanya berdasarkan kode sumber:
 
 Saat pemain selesai menjawab kuis atau waktu habis, `ResultManager` membaca data peringkat (*leaderboardData*). Jika pemain me-refresh browser, data hasil tetap aman karena dicadangkan di `sessionStorage`:
 
-```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+```typescript title="Inisialisasi & Preservasi State Sesi"
 start(data?: { room?: any; leaderboardData?: any[]; supabaseSessionId?: string }) {
     document.title = "Result | Zigma";
     // Paksa orientasi portrait di mobile
@@ -60,7 +60,7 @@ start(data?: { room?: any; leaderboardData?: any[]; supabaseSessionId?: string }
 
 Sistem mencocokkan `mySessionId` pemain dengan array `rankings` untuk mengambil metrik pencapaian (Rank, Score, Benar/Salah, Durasi):
 
-```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+```typescript title="Ekstraksi Data Hasil Player"
 private renderIndividualResult() {
     const roomCode = this.room?.state?.roomCode || localStorage.getItem('currentRoomCode') || '';
     Router.navigate(`/player/${roomCode}/result`);
@@ -95,7 +95,7 @@ Data ditampilkan dalam kartu visual bergaya retro pixelated dengan 4 metrik utam
 3. **Correct**: Jumlah jawaban benar terhadap total soal (`correctAnswers / questionTotal`)
 4. **Time**: Total waktu yang dihabiskan untuk menyelesaikan kuis
 
-```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+```typescript title="Struktur HTML Result Card"
 <div class="result-card pointer-events-auto">
     <!-- Avatar Pemain / Fallback Inisial -->
     <div class="result-avatar-container" style="background: #336B23; color: white;">
@@ -139,7 +139,7 @@ Data ditampilkan dalam kartu visual bergaya retro pixelated dengan 4 metrik utam
 
 Ketika pemain sudah di halaman result tetapi room kuis secara keseluruhan baru berakhir (misal karena host klik End Game atau timer habis), Colyseus mengirim pesan `gameEnded`:
 
-```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+```typescript title="Sinkronisasi Pesan Server Colyseus"
 this.room.onMessage("gameEnded", (msgData: { rankings: any[] }) => {
     this.rankings = msgData.rankings;
     this.isGameEnded = true; // Buka kunci tombol Statistics
@@ -177,7 +177,7 @@ Terdapat dua tombol navigasi di bagian bawah (footer):
 1. **Home (`#lb-home-btn`)**: Mengirim sinyal `manualPlayerLeave` ke server, membersihkan session, dan kembali ke halaman utama `/`.
 2. **Stats (`#lb-stats-btn`)**: Terkunci (*disabled*) sampai seluruh sesi kuis selesai (`isGameEnded = true`). Ketika aktif, tombol ini membuka statistik detail di platform GameForSmart.
 
-```typescript title="client/src/scenes/player/[roomCode]/results/page.ts"
+```typescript title="Penanganan Tombol Home & Statistik"
 // 1. Tombol Keluar (Home)
 const attachHomeHandler = (btn: HTMLElement | null) => {
     btn.onclick = () => {
