@@ -1,0 +1,39 @@
+---
+title: Gambaran Umum
+description: Penjelasan singkat tentang Zigma, arsitektur sistem, dan fitur-fitur utamanya.
+icon: BookOpen
+---
+
+# Gambaran Umum Zigma
+
+**Zigma** adalah game *Educational 2D Top-Down Multiplayer Quiz Arcade* berbasis web dari platform GameForSmart (`gameforsmart.com`). Game ini dirancang untuk mengubah kegiatan kuis atau evaluasi pembelajaran menjadi pengalaman petualangan 2D retro pixel yang interaktif dan kompetitif.
+
+Tujuan utama penggunaan Zigma adalah meningkatkan keterlibatan peserta kuis (siswa/pemain) melalui mekanisme eksplorasi karakter 2D, aksi mengejar monster kuis, dan pengumpulan peti harta karun, sementara instruktur (guru/host) dapat mengelola serta memantau progres kuis secara *real-time*.
+
+---
+
+## Gambaran Arsitektur Sistem
+
+Arsitektur sistem Zigma dibangun berbasis gabungan teknologi web modern dan game engine 2D untuk memisahkan performa visual canvas dengan antarmuka DOM HTML:
+
+* **Frontend Client (`client`)**: Menggunakan **Vite**, **TypeScript**, dan **Phaser 3** untuk rendering visual canvas 2D pixel art, dipadukan dengan **Tailwind CSS** untuk UI overlay DOM (Lobby, Modal Kuis, Result Card), **Colyseus.js** untuk koneksi WebSocket, serta **@supabase/ssr** untuk manajemen sesi autentikasi SSO.
+* **Backend Game Server (`server`)**: Menggunakan **Node.js**, **Express**, dan **Colyseus** (`@colyseus/ws-transport`) sebagai game server yang bersifat *authoritative* dalam menghitung pergerakan AI musuh, memvalidasi jawaban kuis, dan menghitung skor.
+* **Shared Schema (`shared`)**: Menggunakan **@colyseus/schema** untuk mendefinisikan skema state biner yang disinkronkan secara otomatis dan efisien antara server dan client.
+* **Penyimpanan Data & Cache**: Menggunakan **Supabase (PostgreSQL)** untuk penyimpanan master data kuis serta riwayat sesi permainan, dan **Redis** untuk *presence driver* dan matchmaking cluster server.
+
+---
+
+## Fitur Utama
+
+Berikut adalah daftar fitur utama yang diimplementasikan pada Zigma:
+
+* **Quiz Multiplayer** — Memungkinkan beberapa player mengikuti kuis secara bersamaan dalam satu room berbasis WebSocket real-time.
+* **Karakter & Avatar Customization** — Memungkinkan player memilih gaya rambut dan tampilan karakter 2D sebelum memasuki permainan.
+* **Eksplorasi Arena 2D** — Memungkinkan player mengendalikan karakter retro pixel di map top-down untuk mengejar monster kuis dan peti harta karun.
+* **Modal Kuis Interaktif (QuizPopup)** — Menampilkan modal antarmuka HTML/CSS dengan timer countdown saat player berinteraksi dengan monster.
+* **Peti Harta Karun (Chests & Buffs)** — Memberikan efek pemulihan nilai dan peningkatan kecepatan gerak karakter secara langsung di arena.
+* **Host Lobby & QR Code Join** — Memfasilitasi host untuk membuat room kuis, menampilkan QR Code, dan memantau antrean player sebelum game dimulai.
+* **Host Monitoring** — Memungkinkan host memantau posisi karakter dan progres pengerjaan kuis seluruh player secara real-time di layar monitor.
+* **Leaderboard & Ranking** — Menampilkan klasemen skor akhir, akurasi jawaban, dan podium 3 besar player setelah permainan selesai.
+* **Multi-Language Support (i18n)** — Menyediakan pilihan bahasa antarmuka (Indonesia, Inggris, Arab) dengan dukungan tata letak RTL.
+* **Bot Load Testing Simulator** — Memungkinkan pengembang menguji kapasitas room dan kestabilan WebSocket server dengan puluhan bot otomatis.

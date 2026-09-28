@@ -2,6 +2,9 @@
   "title": "Game Docs",
   "root": true,
   "pages": [
+    "---Pengenalan---",
+    "pengenalan/gambaran-umum",
+    "pengenalan/tampilan",
     "...getting-started",
     "...stack",
     "...structure",
@@ -10,6 +13,7 @@
     "...combat",
     "...multiplayer",
     "...deploy",
-    "tutorial"
+    "---Tutorial---",
+    "...tutorial"
   ]
 }

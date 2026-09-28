@@ -1,5 +1,6 @@
 {
   "title": "Join",
+  "icon": "LogIn",
   "pages": [
     "join-session"
   ]

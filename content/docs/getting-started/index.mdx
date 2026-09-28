@@ -1,99 +1,213 @@
 ---
 title: Mulai Sekarang
-description: Setup project dari nol dan install semua dependency monorepo Zigma.
-icon: Rocket
+description: Panduan langkah demi langkah membangun game Zigma dari awal — prasyarat sistem, inisialisasi workspace, setup environment, dan struktur folder.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
 # Mulai Sekarang
 
-Selamat datang di panduan teknis **Zigma**! Di bagian ini kamu akan mempersiapkan environment dan workspace monorepo untuk menjalankan game kuis multiplayer real-time 2D.
+Halaman ini memandu kamu untuk menyiapkan lingkungan pengembangan dan menginisialisasi project game **Zigma** dari awal (*from scratch*). Seluruh konfigurasi dan direktori project dibuat secara bertahap tanpa perlu melakukan clone dari repository yang sudah jadi.
 
 <Callout type="info">
-  Estimasi waktu: **15–30 menit** untuk setup environment, konfigurasi file `.env`, dan menjalankan development server.
+  Estimasi waktu setup awal: **15–20 menit** untuk instalasi tools, inisialisasi workspace, konfigurasi file `.env`, dan menginstal dependensi.
 </Callout>
 
-## Gambaran Umum Zigma & Cara Kerja
+---
 
-Zigma adalah game *Educational 2D Top-Down Multiplayer Quiz Arcade* berbasis Web dari platform GameForSmart (`gameforsmart.com`). Game ini memadukan aksi petualangan 2D retro pixel dengan kuis edukatif:
+## Prasyarat Sistem & Instalasi
 
-* **Konsep**: Host membuat room kuis, menentukan batas waktu dan jumlah soal. Pemain bergabung menggunakan kode PIN 6-digit atau scan QR Code.
-* **Cara Kerja**: Pemain mengendalikan avatar Human 2D untuk mengejar monster (skeleton & goblin) yang membawa kuis. Begitu didekati dan ditebas, modal kuis interaktif muncul. Menjawab dengan benar mengalahkan monster dan menambah skor, sementara peti harta karun (*chests*) memberikan buff kecepatan dan pemulihan nilai.
+Sebelum membuat project, pastikan seluruh kebutuhan sistem dan tools berikut sudah terpasang dan siap digunakan:
+
+* **Node.js (LTS $\ge$ 18.0.0) & npm** — Runtime JavaScript untuk menjalankan backend Colyseus/Express dan mengelola paket dependensi. Unduh dari [nodejs.org](https://nodejs.org/) dan verifikasi dengan `node -v` serta `npm -v`.
+* **Git** — Version control untuk pelacakan kode sumber. Unduh dari [git-scm.com](https://git-scm.com/) dan verifikasi dengan `git --version`.
+* **Redis Server (Port 6379)** — Penyimpan state sesi room (*Presence Driver*) untuk Colyseus. Pasang via Memurai/WSL 2/Docker di Windows, atau package manager (`redis-server` / `brew install redis`) di Linux/macOS. Verifikasi dengan `redis-cli ping` $\rightarrow$ `PONG`.
+* **Akun & Project Supabase** — Layanan database PostgreSQL dan autentikasi SSO. Buat project baru di [supabase.com](https://supabase.com/) lalu catat Project URL, Anon Key (client), dan Service Role Key (server) dari menu *Project Settings → API*.
+* **Code Editor** — Editor pengembangan kode seperti Visual Studio Code dengan ekstensi rekomendasi *ESLint*, *Prettier*, dan *Tailwind CSS IntelliSense*.
 
 ---
 
-## Prasyarat Sistem
+## Inisialisasi Project
 
-Pastikan tools berikut sudah terpasang di perangkat kamu:
+Langkah inisialisasi struktur workspace project Zigma dari terminal:
 
-* **Node.js** versi LTS (>= 18.0.0) — [download](https://nodejs.org/)
-* **Git** untuk version control
-* **Redis Server** (port `6379`) — untuk clustering matchmaking Colyseus
-* **Proyek Supabase** — URL & Service Role Key untuk database PostgreSQL
-* **Code Editor** — Rekomendasi: Visual Studio Code
-
----
-
-## Quick Start
-
+**1. Membuat Direktori Project**
 ```bash
-# 1. Clone repository
-git clone https://gitlab.com/your-org/MultiplayerGameQuiz.git
+mkdir MultiplayerGameQuiz
 cd MultiplayerGameQuiz
-
-# 2. Install seluruh dependency monorepo (client, server, shared)
-npm install
-
-# 3. Salin file environment konfigurasi
-cp server/.env.example server/.env
-cp client/.env.example client/.env
-
-# 4. Jalankan client dan server secara serentak
-npm run dev
 ```
 
-Server Colyseus akan berjalan di `http://localhost:2567`, dan client Vite akan terbuka di `http://localhost:5173`.
+**2. Inisialisasi Root package.json (npm Workspaces)**
+Buat file `package.json` di root direktori untuk menghubungkan ketiga bagian workspace (`client`, `server`, dan `shared`):
+
+```json title="package.json"
+{
+  "name": "zigma-project",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "build": "npm run build --prefix client && npm run build --prefix server",
+    "start": "npm start --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+```
+
+**3. Membuat Subfolder Workspace**
+```bash
+mkdir shared server client
+```
+
+* `shared/` — Skema state biner Colyseus dan interface TypeScript bersama.
+* `server/` — Backend Colyseus WebSocket, Express REST API, dan integrasi database.
+* `client/` — Frontend Vite, canvas game Phaser 3, dan antarmuka overlay DOM HTML/CSS.
 
 ---
 
-## Struktur Monorepo
+## Setup Environment & Dependensi
+
+**1. Konfigurasi Variabel Lingkungan (.env)**
+
+File `server/.env`:
+```bash title="server/.env"
+PORT=2567
+NODE_ENV=development
+REDIS_URL=redis://127.0.0.1:6379
+SUPABASE_URL=https://your-supabase-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+CLIENT_ORIGIN=http://localhost:5173
+```
+
+File `client/.env`:
+```bash title="client/.env"
+VITE_SERVER_URL=http://localhost:2567
+VITE_SUPABASE_URL=https://your-supabase-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+**2. Konfigurasi package.json Setiap Workspace**
+
+File `shared/package.json`:
+```json title="shared/package.json"
+{
+  "name": "@zigma/shared",
+  "version": "1.0.0",
+  "main": "state.ts",
+  "dependencies": {
+    "@colyseus/schema": "^2.0.0"
+  }
+}
+```
+
+File `server/package.json`:
+```json title="server/package.json"
+{
+  "name": "@zigma/server",
+  "version": "1.0.0",
+  "main": "src/server.ts",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@colyseus/redis-driver": "^0.15.0",
+    "@colyseus/redis-presence": "^0.15.0",
+    "@colyseus/schema": "^2.0.0",
+    "@colyseus/ws-transport": "^0.15.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "colyseus": "^0.15.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "ioredis": "^5.11.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.2.2"
+  }
+}
+```
+
+File `client/package.json`:
+```json title="client/package.json"
+{
+  "name": "@zigma/client",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.98.0",
+    "colyseus.js": "^0.15.28",
+    "html5-qrcode": "^2.3.8",
+    "i18next": "^26.3.5",
+    "phaser": "^3.80.0",
+    "qrcode": "^1.5.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^20.11.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  }
+}
+```
+
+**3. Instalasi Seluruh Dependensi**
+
+Jalankan perintah ini di root direktori project:
+```bash
+npm install
+```
+
+---
+
+## Struktur Folder Project
+
+Struktur dasar direktori workspace project Zigma yang terbentuk:
 
 ```text
 MultiplayerGameQuiz/
-├── package.json                         # Config root monorepo & script utama
+├── package.json                         # Konfigurasi workspace root
 ├── shared/
-│   └── state.ts                         # Definisi schema Colyseus (GameState, Player, Enemy, Chest, etc.)
+│   ├── package.json                     # Dependensi modul shared
+│   └── state.ts                         # Skema state biner Colyseus
 ├── server/
-│   ├── package.json                     # Dependency server (Colyseus, Express, Redis, Supabase)
+│   ├── .env                             # Konfigurasi lingkungan backend
+│   ├── package.json                     # Dependensi backend
 │   └── src/
-│       ├── server.ts                    # Entrypoint server Express + Colyseus WebSocket + Redis setup
-│       ├── rooms/
-│       │   ├── GameRoom.ts              # Logika room utama, lifecycle, handler pesan WS, & AI musuh
-│       │   └── GameState.ts             # Re-export schema dari shared/state.ts
-│       ├── utils/
-│       │   ├── MapParser.ts             # Parser tilemap Tiled untuk spawn zone & rintangan map
-│       │   └── supabase.ts              # Integrasi client Supabase backend
-│       └── routes/
-│           └── sync-results.ts          # API Endpoint penyimpanan hasil kuis
+│       ├── server.ts                    # Entrypoint server Express + Colyseus
+│       ├── rooms/                       # Room logika dan event handler
+│       └── utils/                       # Integrasi Supabase dan tilemap parser
 └── client/
-    ├── package.json                     # Dependency client (Phaser, Colyseus.js, Vite, Tailwind)
-    ├── bot.html                         # Interface HTML simulator bot test
+    ├── .env                             # Konfigurasi lingkungan frontend
+    ├── package.json                     # Dependensi frontend
+    ├── index.html                       # Entry container HTML
     └── src/
-        ├── main.ts                      # Entrypoint client, router autentikasi, & UI DOM bootstrap
-        ├── game.ts                      # Konfigurasi Phaser 3 Game Instance & registrasi Scene
-        ├── services/
-        │   └── room/RoomService.ts      # Client service penghubung Colyseus WebSocket
-        └── scenes/
-            ├── host/
-            │   └── [roomCode]/
-            │       ├── lobby/page.ts    # Scene waiting room host
-            │       └── progress/page.ts # Scene pantauan progres siswa secara real-time
-            ├── player/
-            │   └── [roomCode]/
-            │       └── game/page.ts     # Scene gameplay 2D utama player (render map & sprite)
-            └── test/
-                └── BotSimulatorManager.ts # Simulator bot load testing
+        ├── main.ts                      # Entrypoint aplikasi client
+        ├── game.ts                      # Inisialisasi game instance Phaser 3
+        ├── services/                    # Service koneksi WebSocket
+        └── scenes/                      # Scene permainan (Lobby, Gameplay, Monitor)
 ```
-
-Lanjut ke [Stack Teknologi](/docs/stack) untuk melihat rincian dependensi, atau [Struktur Project](/docs/structure) untuk layout folder dan tanggung jawab arsitekturalnya.

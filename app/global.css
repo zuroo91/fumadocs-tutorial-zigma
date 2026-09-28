@@ -25,3 +25,8 @@ html > body[data-scroll-locked] {
   --color-game-dark: #2D3436;
   --color-game-light: #DFE6E9;
 }
+
+/* Sidebar styling for Mulai Sekarang */
+a[href*="/docs/getting-started"] {
+  font-weight: 700 !important;
+}

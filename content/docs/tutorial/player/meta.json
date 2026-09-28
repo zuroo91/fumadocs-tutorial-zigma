@@ -1,5 +1,6 @@
 {
   "title": "Player",
+  "icon": "Gamepad2",
   "pages": [
     "multiplayer",
     "sistem-gameplay",

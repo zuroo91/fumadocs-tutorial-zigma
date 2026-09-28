@@ -1,0 +1,63 @@
+---
+title: Tampilan Zigma
+description: Panduan mengenal antarmuka pengguna, menu utama, dan layar tampilan Host dan Player pada Zigma.
+icon: Monitor
+---
+
+# Tampilan Zigma
+
+Halaman ini menjelaskan bagian-bagian utama antarmuka pengguna (UI) pada Zigma agar kamu dapat memahami fungsi setiap tampilan sebelum masuk ke langkah pembuatan game.
+
+---
+
+## 1. Dashboard & Halaman Utama
+
+Halaman utama (`/`) bertindak sebagai pusat navigasi awal bagi seluruh pengguna platform.
+
+![Dashboard Utama Zigma](/images/homepage.png)
+
+### Menu & Elemen Utama:
+* **Form Join Room**: Tempat player memasukkan **PIN 6-digit** dan **Nickname** untuk bergabung ke dalam permainan secara cepat.
+* **Scan QR Code**: Opsi bagi player perangkat mobile untuk memindai QR Code room langsung melalui kamera browser.
+* **Tombol Host Create Room**: Akses khusus bagi instruktur/host untuk mengonfigurasi dan membuka sesi kuis baru.
+* **Kustomisasi Karakter**: Panel pemilih gaya rambut dan warna avatar karakter 2D player sebelum masuk ke room.
+
+---
+
+## 2. Antarmuka Sisi Host
+
+Host memiliki layar tampilan khusus untuk mengelola kuis, mengontrol alur permainan, dan memantau progres seluruh peserta.
+
+### A. Host Lobby
+Layar ruang tunggu yang ditampilkan host sebelum permainan dimulai.
+
+![Host Lobby Zigma](/images/host-lobby.png)
+
+* **Fungsi Utama**: Menampilkan **PIN Room 6-digit** dalam ukuran besar, menyajikan **QR Code** untuk di-scan player, menampilkan daftar kartu player yang telah bergabung secara real-time, serta menyediakan tombol **Start Game**.
+
+### B. Host Monitor 
+Layar pantauan player saat kuis berlangsung.
+
+![Host Monitor Zigma](/images/host-monitor.png)
+
+* **Fungsi Utama**: Menampilkan peta arena 2D secara *bird-eye view*, melacak pergerakan karakter seluruh siswa di arena, serta menampilkan statistik persentase pengerjaan kuis dan skor terkini secara live.
+
+---
+
+## 3. Antarmuka Sisi Player
+
+Player berinteraksi dengan dua lapisan tampilan utama selama permainan: canvas 2D Phaser dan modal overlay HTML.
+
+### A. Arena Gameplay 2D
+Layar arena permainan 2D di mana player mengendalikan avatar karakter.
+
+![Arena Gameplay 2D Zigma](/images/gameplay.png)
+
+* **Fungsi Utama**: Merender peta tilemap 2D, sprite karakter player, monster pembawa kuis (skeleton & goblin), peti harta karun, serta kontrol navigasi (WASD / D-Pad Sentuh Mobile).
+
+### B. Modal Kuis Interaktif (`QuizPopup`)
+Modal overlay HTML yang muncul di atas canvas 2D saat player menebas monster kuis.
+
+![Modal Kuis Interaktif Zigma](/images/sistem-kuis.png)
+
+* **Fungsi Utama**: Menyajikan teks pertanyaan kuis, pilihan jawaban interaktif, timer countdown per soal, indikator jumlah soal tersisa, dan umpan balik visual saat jawaban diverifikasi oleh server.

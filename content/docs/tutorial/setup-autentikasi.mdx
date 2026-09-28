@@ -1,28 +1,30 @@
 ---
 title: Setup & Autentikasi
-description: Inisialisasi workspace monorepo Zigma dan integrasi autentikasi Supabase SSO.
+description: Inisialisasi project workspace Zigma dari nol dan integrasi autentikasi Supabase SSO.
+icon: ShieldCheck
 ---
 
 # Setup & Autentikasi
 
-Zigma dikembangkan sebagai proyek **monorepo npm workspaces** yang terdiri dari package `client`, `server`, dan `shared`. 
+Zigma dibangun sebagai project yang terdiri dari tiga bagian utama: `client`, `server`, dan `shared`. 
 
-Modul ini menjelaskan inisialisasi lingkungan kerja, dependensi yang digunakan, serta integrasi sistem autentikasi SSO berbasis Supabase.
+Modul ini menjelaskan alur pembuatan konfigurasi project dari awal, penyiapan file variabel lingkungan (`.env`), serta pembuatan integrasi sistem autentikasi SSO berbasis Supabase.
 
 ---
 
-## 1. Struktur Workspace Monorepo
+## 1. Konfigurasi Root `package.json`
 
-Root `package.json` mengelola workspaces untuk menyelaraskan dependensi antara client dan server:
+Buat file `package.json` di root direktori project (`MultiplayerGameQuiz/package.json`) untuk menyelaraskan dependensi dan manajemen script antara `client`, `server`, dan `shared`. File ini menggunakan npm workspaces untuk menghubungkan ketiga bagian project tersebut:
 
 ```json title="package.json"
 {
-  "name": "legends-of-learning-monorepo",
+  "name": "zigma-project",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "shared"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
@@ -31,44 +33,66 @@ Root `package.json` mengelola workspaces untuk menyelaraskan dependensi antara c
     "build": "npm run build --prefix client && npm run build --prefix server",
     "start": "npm start --prefix server"
   },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
   "engines": {
     "node": ">=18.0.0"
   }
 }
 ```
 
-Untuk menginstal seluruh dependensi di semua workspace:
+* **File dibuat**: `package.json` (Root).
+* **Fungsi Code**: Menghubungkan paket internal `shared`, `server`, dan `client` melalui `npm workspaces`, serta mengeksekusi `concurrently` untuk menjalankan dev server backend dan frontend secara bersamaan.
+
+Untuk menginstal seluruh dependensi di semua workspace setelah file `package.json` di `client`, `server`, dan `shared` dibuat:
 ```bash
 npm install
 ```
 
 ---
 
-## 2. Konfigurasi Environment
+## 2. Membuat Konfigurasi Environment (`.env`)
 
-Salin file contoh konfigurasi environment yang sudah disediakan pada masing-masing workspace:
+Buat dua file konfigurasi lingkungan secara manual pada masing-masing direktori workspace:
 
-```bash
-# Environment backend server
-cp server/.env.example server/.env
-
-# Environment frontend client
-cp client/.env.example client/.env
+1. **Buat file `server/.env`**:
+```bash title="server/.env"
+PORT=2567
+NODE_ENV=development
+REDIS_URL=redis://127.0.0.1:6379
+SUPABASE_URL=https://your-supabase-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+CLIENT_ORIGIN=http://localhost:5173
 ```
+* **Fungsi**: Port listening server Colyseus (`2567`), alamat koneksi Redis (`6379`), dan kredensial Supabase backend (`service_role`).
 
-Pastikan variabel utama seperti port server, koneksi Redis, kredensial Supabase, dan origin CORS telah disesuaikan dengan environment target kamu.
+2. **Buat file `client/.env`**:
+```bash title="client/.env"
+VITE_SERVER_URL=http://localhost:2567
+VITE_SUPABASE_URL=https://your-supabase-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+* **Fungsi**: Variabel lingkungan frontend Vite untuk koneksi WebSocket ke server Colyseus dan publik key Supabase.
 
 ---
 
 ## 3. Integrasi Supabase Client
 
-Client Zigma menggunakan `@supabase/ssr` untuk mengelola cookie autentikasi lintas subdomain platform:
+Buat file `client/src/lib/supabase.ts` untuk mengkonfigurasi Supabase client berbasis `@supabase/ssr`. Ini mengelola cookie autentikasi yang dapat membagi sesi login secara SSO lintas subdomain (seperti platform `gameforsmart.com`):
 
-```typescript title="Konfigurasi Client Supabase"
+```typescript title="client/src/lib/supabase.ts"
 import { createBrowserClient } from '@supabase/ssr';
 
-const supabaseUrl = import.meta.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+export interface Profile {
+    id: string;
+    username: string;
+    avatar_url?: string;
+    email?: string;
+}
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 const isProd = typeof window !== "undefined" && window.location.hostname.endsWith("gameforsmart.com");
 
@@ -82,14 +106,17 @@ export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
 });
 ```
 
+* **File dibuat**: `client/src/lib/supabase.ts`
+* **Fungsi Code**: Menginisialisasi `createBrowserClient` untuk mengelola token autentikasi pengguna secara aman melalui cookie browser.
+
 ---
 
-## 4. Layanan Autentikasi Singleton
+## 4. Layanan Autentikasi Singleton (`AuthService`)
 
-Kelas `AuthService` bertindak sebagai singleton yang menangani alur sesi login pemain, validasi token OAuth, dan sinkronisasi status aktif lintas tab browser:
+Buat file `client/src/services/AuthService.ts`. Kelas `AuthService` bertindak sebagai singleton yang mengisolasi logika autentikasi, memverifikasi sesi login pemain, dan menyimpan profil aktif:
 
-```typescript title="Implementasi AuthService"
-import { supabase, Profile } from '../../lib/supabase';
+```typescript title="client/src/services/AuthService.ts"
+import { supabase, Profile } from '../lib/supabase';
 
 export class AuthService {
     private static instance: AuthService;
@@ -107,6 +134,21 @@ export class AuthService {
         return !!session?.user;
     }
 
+    async fetchProfile(): Promise<Profile | null> {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+        if (error || !data) return null;
+        this.currentProfile = data as Profile;
+        return this.currentProfile;
+    }
+
     getStoredProfile(): Profile | null {
         return this.currentProfile;
     }
@@ -115,11 +157,14 @@ export class AuthService {
 export const authService = AuthService.getInstance();
 ```
 
+* **File dibuat**: `client/src/services/AuthService.ts`
+* **Fungsi Code**: Menyediakan metode helper terpusat `isAuthenticated()`, `fetchProfile()`, dan `getStoredProfile()` untuk digunakan oleh router antarmuka dan Phaser Scenes.
+
 ---
 
-## 5. Menjalankan Server & Client
+## 5. Menjalankan Server & Client Development
 
-Jalankan perintah berikut pada root project untuk memulai development server secara serentak:
+Setelah konfigurasi workspace, file `.env`, dan modul Supabase selesai dibuat, jalankan perintah berikut pada root project untuk memulai development server:
 
 ```bash
 npm run dev
@@ -127,6 +172,6 @@ npm run dev
 
 * **Client Vite Dev Server**: Berjalan di `http://localhost:5173`
 * **Colyseus WebSocket Server**: Berjalan di `http://localhost:2567`
-* **Colyseus Monitor**: Dapat diakses di `http://localhost:2567/colyseus`
+* **Colyseus Monitor Dashboard**: Dapat diakses di `http://localhost:2567/colyseus`
 
 Lanjutkan ke [Homepage & Dashboard →](/docs/tutorial/homepage-dashboard).

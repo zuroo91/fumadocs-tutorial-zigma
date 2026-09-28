@@ -1,5 +1,6 @@
 {
   "title": "Host",
+  "icon": "Crown",
   "pages": [
     "create-room",
     "host-lobby",
