@@ -7,6 +7,6 @@ export function baseOptions(): BaseLayoutProps {
       title: appName,
     },
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
-    searchToggle: { enabled: false },
+    searchToggle: { enabled: true },
   };
 }

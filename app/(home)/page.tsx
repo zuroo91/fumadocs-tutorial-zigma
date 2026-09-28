@@ -71,15 +71,6 @@ const phases = [
     color: 'from-pink-500/20 to-rose-500/20',
     border: 'border-pink-500/30 hover:border-pink-400',
   },
-  {
-    name: 'Deploy & Monitoring',
-    description:
-      'Pengujian dengan Bot Simulator, PM2 cluster mode, Redis presence, dan pipeline GitLab CI/CD.',
-    href: '/docs/deploy',
-    icon: Server,
-    color: 'from-red-500/20 to-orange-500/20',
-    border: 'border-red-500/30 hover:border-red-400',
-  },
 ];
 
 const quickLinks = [
@@ -111,6 +102,7 @@ const quickLinks = [
 
 export default function HomePage() {
   return (
+    <>
     <main className="flex flex-col items-center">
       {/* Hero Section */}
       <section className="w-full max-w-5xl px-6 pt-16 pb-12 text-center">
@@ -236,35 +228,25 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer CTA */}
-      <section className="w-full max-w-5xl px-6 mb-16">
-        <div
-          className="rounded-2xl p-8 text-center text-white"
-          style={{ background: 'linear-gradient(135deg, #1e1b4b, #4c1d95, #581c87)' }}
-        >
-          <h2 className="text-2xl font-bold mb-2">Siap Membangun Game Pertamamu?</h2>
-          <p className="text-purple-200 mb-6">
-            Mulai dari setup project, bangun karakter pertama, dan luncurkan MVP dalam hitungan
-            minggu.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Link
-              href="/docs/getting-started"
-              className="inline-flex items-center gap-2 rounded-lg bg-white text-purple-900 px-5 py-2.5 text-sm font-bold hover:bg-purple-50 transition-colors"
-            >
-              <Target className="size-4" />
-              Mulai dari Setup
-            </Link>
-            <Link
-              href="/docs/tutorial"
-              className="inline-flex items-center gap-2 rounded-lg border border-purple-400 text-white px-5 py-2.5 text-sm font-semibold hover:bg-purple-800/50 transition-colors"
-            >
-              <Swords className="size-4" />
-              Lihat Overview
-            </Link>
-          </div>
-        </div>
-      </section>
+
     </main>
+
+    {/* Footer */}
+    <footer className="w-full border-t border-fd-border bg-fd-background/80 backdrop-blur">
+      <div className="max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm text-fd-muted-foreground">
+        <span>© 2026 Zigma. Hak Cipta Dilindungi Undang-Undang.</span>
+        <div className="flex items-center gap-1">
+          <a
+            href="https://gameforsmart.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-fd-primary transition-colors"
+          >
+            Website Resmi
+          </a>
+        </div>
+      </div>
+    </footer>
+    </>
   );
 }
