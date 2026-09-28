@@ -1,228 +1,158 @@
 ---
 title: Create Room
-description: Alur dan cara kerja sistem Create Room.
+description: Langkah demi langkah membangun logika pembuatan room di server Colyseus, alokasi PIN 6-digit, dan pengambilan soal Supabase.
 icon: CirclePlus
 ---
 
-Berikut adalah alur lengkap mengenai sistem **Create Room** di Zigma berdasarkan modul client dan server:
+# Membangun Fitur Create Room (Host)
+
+Pada modul ini, kamu akan membangun logika pembuatan room kuis di sisi server Colyseus (`GameRoom.ts`), pembuatan PIN unik 6-digit, serta query bank soal kuis dari database Supabase.
 
 ---
 
-### Alur Kerja Create Room
+## Langkah 1: Mendefinisikan Skema State Room Bersama (shared/state.ts)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Host as Host (Client)
-    participant UI as SelectQuiz / QuizSetting
-    participant Server as GameRoom (Colyseus)
-    participant DB as Supabase DB
+Buat file `shared/state.ts` menggunakan `@colyseus/schema` untuk mendefinisikan state sinkronisasi room:
 
-    Host->>UI: Pilih Kuis & Konfigurasi (Difficulty, Timer, Question Count)
-    UI->>UI: Generate 6-Digit PIN & SessionId XID
-    UI->>Server: client.create("game_room", options)
-    Server->>Server: Inisialisasi GameState, Sub-rooms, AutoDispose = false
-    Server->>DB: Fetch soal kuis dari tabel `quizzes` (Server-side Only)
-    Server->>Server: Acak soal & simpan kunci jawaban secara privat di server
-    Server->>DB: Simpan record sesi awal ke tabel `game_sessions` (Status: "waiting")
-    Server->>Server: Set room metadata (roomCode, isStarted: false)
-    Server-->>UI: Room Created (Room ID & Reconnection Token)
-    UI->>UI: Simpan token ke SessionStore & localStorage
-    UI->>Host: Navigasi ke /host/[roomCode]/lobby (HostWaitingRoomScene)
+```typescript title="shared/state.ts"
+import { Schema, MapSchema, type } from '@colyseus/schema';
+
+export class Player extends Schema {
+  @type("string") id: string = "";
+  @type("string") nickname: string = "";
+  @type("string") hairOption: string = "SHORT";
+  @type("number") x: number = 200;
+  @type("number") y: number = 200;
+  @type("number") score: number = 0;
+  @type("number") answeredCount: number = 0;
+  @type("boolean") isHost: boolean = false;
+  @type("boolean") isReady: boolean = false;
+}
+
+export class Question extends Schema {
+  @type("string") id: string = "";
+  @type("string") questionText: string = "";
+  @type("string") optionA: string = "";
+  @type("string") optionB: string = "";
+  @type("string") optionC: string = "";
+  @type("string") optionD: string = "";
+  @type("string") correctAnswer: string = ""; // Disembunyikan dari payload klien publik
+}
+
+export class GameState extends Schema {
+  @type("string") roomCode: string = "";
+  @type("string") status: string = "LOBBY"; // LOBBY, PLAYING, FINISHED
+  @type("number") timeRemaining: number = 600; // 10 Menit default
+  @type({ map: Player }) players = new MapSchema<Player>();
+}
 ```
 
-Zigma memiliki **2 cara** pembuatan room:
-1. **Manual Mode (Host via Aplikasi):** Host memilih kuis melalui `SelectQuizManager`, lalu mengatur konfigurasi permainan di `QuizSettingManager`.
-2. **Auto-Create Mode (Kompetisi dari Admin Dashboard):** Room dibuat otomatis saat URL mendeteksi parameter query: `?quizId=...&gamePin=...&sessionId=...&hostId=...`.
+* **File dibuat**: `shared/state.ts`
+* **Fungsi**: Skema biner yang diserialisasi otomatis antara server dan klien.
 
 ---
 
-### 1. Konfigurasi & Pembuatan Room di Sisi Client
-**Modul:** Antarmuka Pengaturan Kuis Host
+## Langkah 2: Membangun Logika Room Server (server/src/rooms/GameRoom.ts)
 
-Ketika host menekan tombol konfirmasi pembuatan room:
-1. Menyiapkan objek payload `options` (PIN, durasi timer, batas soal, tingkat kesulitan, map, dll.).
-2. Menghapus sesi host sebelumnya untuk mencegah data *ghost session*.
-3. Memanggil fungsi Colyseus `client.create("game_room", options)`.
-4. Menyimpan data sesi baru (`currentSessionId`, `currentReconnectionToken`, `currentRoomCode`) ke `SessionStore` & `localStorage`.
-5. Melakukan transisi visual dan navigasi ke rute `/host/${roomCode}/lobby`.
+Buat file `server/src/rooms/GameRoom.ts` yang menangani siklus hidup (*lifecycle*) room:
 
-```typescript title="Alur Pembuatan Room di Sisi Client"
-const options = {
-    roomCode: roomCode,          // 6-digit PIN acak
-    sessionId: sessionId,        // 20-char XID database session
-    difficulty: this.settingsDifficulty, // 'easy' | 'medium' | 'hard'
-    subject: (this.selectedQuiz.category || "umum").toLowerCase(),
-    quizId: this.selectedQuiz.id,
-    quizTitle: this.selectedQuiz.title,
-    map: mapFile,
-    questionCount: this.settingsQuestionCount,
-    enemyCount: enemyCount,
-    timer: this.settingsTimer,   // dalam detik (misal 300s = 5 menit)
-    hostId: hostId,
-    authUserId: profile.auth_user_id || undefined,
-    name: profile.nickname || profile.fullname || 'Host',
-    avatarUrl: profile.avatar_url || "",
-    isHost: true,
-    isTryout: this.tryoutMode,
-    hairId: this.tryoutHairId,
-    quizDetail: {
-        title: this.selectedQuiz.title,
-        category: this.selectedQuiz.category,
-        language: (this.selectedQuiz as any).language || 'id',
-        description: this.selectedQuiz.description,
-    },
-    isMusicEnabled: this.soundEnabled
-};
+```typescript title="server/src/rooms/GameRoom.ts"
+import { Room, Client } from 'colyseus';
+import { GameState, Player } from '@zigma/shared';
+import { supabaseServer } from '../utils/supabase';
 
-// 1. Bersihkan sesi host yang lama agar tidak bentrok
-SessionStore.clearGameSession('host');
-localStorage.removeItem('lastGameOptions');
+export class GameRoom extends Room<GameState> {
+  maxClients = 50;
+  private quizQuestions: any[] = [];
 
-// 2. Buat room baru di server Colyseus
-const room = await this.client.create("game_room", options);
+  onCreate(options: any) {
+    this.setState(new GameState());
+    
+    // Buat PIN 6-digit unik
+    this.state.roomCode = options.roomCode || Math.floor(100000 + Math.random() * 900000).toString();
+    this.setPrivate(); // Room diakses langsung via PIN
 
-// 3. Simpan token koneksi untuk auto-restore jika browser ter-refresh
-localStorage.setItem('currentRoomId', room.id);
-SessionStore.set('currentSessionId', room.sessionId, 'host');
-SessionStore.set('currentReconnectionToken', room.reconnectionToken, 'host');
-SessionStore.set('isHost', 'true', 'host');
-localStorage.setItem('currentRoomCode', roomCode);
+    // Mengambil soal kuis dari database Supabase
+    if (options.quizId) {
+      this.loadQuizData(options.quizId);
+    }
 
-// 4. Buka scene ruang tunggu host
-TransitionManager.close(() => {
-    window.history.pushState({}, '', `/host/${roomCode}/lobby`);
-    this.startGameEngine('HostWaitingRoomScene', { room, isHost: true });
-    setTimeout(() => TransitionManager.open(), 600);
+    // Handler pesan kontrol dari Host
+    this.onMessage("START_GAME", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player && player.isHost && this.state.status === "LOBBY") {
+        this.state.status = "PLAYING";
+        this.broadcast("GAME_STARTED", { startTime: Date.now() });
+      }
+    });
+
+    this.onMessage("PLAYER_MOVE", (client, data: { x: number; y: number }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player) {
+        player.x = data.x;
+        player.y = data.y;
+      }
+    });
+  }
+
+  async loadQuizData(quizId: string) {
+    const { data, error } = await supabaseServer
+      .from('quizzes')
+      .select('*, questions(*)')
+      .eq('id', quizId)
+      .single();
+
+    if (!error && data) {
+      this.quizQuestions = data.questions || [];
+    }
+  }
+
+  onJoin(client: Client, options: any) {
+    const player = new Player();
+    player.id = client.sessionId;
+    player.nickname = options.nickname || `Player_${client.sessionId.substring(0, 4)}`;
+    player.hairOption = options.hairOption || "SHORT";
+    player.isHost = !!options.isHost;
+
+    this.state.players.set(client.sessionId, player);
+    console.log(`Player ${player.nickname} (${client.sessionId}) bergabung ke room ${this.state.roomCode}`);
+  }
+
+  onLeave(client: Client) {
+    this.state.players.delete(client.sessionId);
+  }
+}
+```
+
+* **File dibuat**: `server/src/rooms/GameRoom.ts`
+* **Fungsi**: Authoritative server yang mengelola state kuis, koneksi peserta, dan pesan jaringan.
+
+---
+
+## Langkah 3: Mendaftarkan Room di Server Entrypoint
+
+Di `server/src/server.ts`, daftarkan `GameRoom` ke server Colyseus:
+
+```typescript title="server/src/server.ts"
+import { Server } from 'colyseus';
+import { createServer } from 'http';
+import express from 'express';
+import { GameRoom } from './rooms/GameRoom';
+
+const app = express();
+const port = Number(process.env.PORT) || 2567;
+const httpServer = createServer(app);
+
+const gameServer = new Server({
+  server: httpServer,
+});
+
+// Daftarkan room dengan identifier "game_room"
+gameServer.define("game_room", GameRoom);
+
+httpServer.listen(port, () => {
+  console.log(`Server Colyseus Zigma aktif di port ${port}`);
 });
 ```
 
----
-
-### 2. Auto-Create Mode untuk Sesi Kompetisi
-**Modul:** Penanganan Otomatis URL Kompetisi
-
-Jika URL dibuka dengan parameter kompetisi (misalnya tautan dari dashboard admin/guru), fungsi `handleHostAutoCreate()` langsung mengunduh kuis terkait dan membuat room tanpa melalui pemilihan manual:
-
-```typescript title="Fungsi Auto-Create dari URL Parameter"
-private async handleHostAutoCreate() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const quizId = urlParams.get('quizId');
-    const gamePin = urlParams.get('gamePin');
-    const sessionId = urlParams.get('sessionId');
-    const hostIdFromUrl = urlParams.get('hostId')?.trim() || null;
-    const difficultyFromUrl = urlParams.get('difficulty')?.trim().toLowerCase() || 'easy';
-
-    // Fetch detail kuis dari Supabase
-    const { fetchQuizById } = await import('../../data/QuizData');
-    const quiz = await fetchQuizById(quizId);
-
-    const options = {
-        roomCode: gamePin,
-        sessionId: sessionId,
-        dbSessionId: sessionId,
-        difficulty: difficultyFromUrl,
-        quizId: quizId,
-        timer: 300,
-        hostId: hostIdFromUrl,
-        isHost: true,
-        // ...
-    };
-
-    const room = await this.client.create("game_room", options);
-    // Simpan ke SessionStore dan navigasi ke HostWaitingRoomScene
-}
-```
-
----
-
-### 3. Inisialisasi Server Colyseus (`onCreate`)
-**Modul:** Server Room Colyseus
-
-Di sisi server, fungsi `onCreate` bertanggung jawab atas inisialisasi lingkungan permainan:
-
-1. **Anti Auto-Dispose:** Menetapkan `this.autoDispose = false` agar room tidak langsung terhapus jika host melakukan reload/refresh halaman browser.
-2. **Patch Rate Jaringan:** Diatur ke `50ms` (20 update/detik) demi keseimbangan antara pergerakan mulus dan efisiensi memori.
-3. **Keamanan Soal (*Server-Side Fetching*):** Soal kuis diambil langsung dari Supabase di server, **bukan dari client**. Kunci jawaban disimpan secara privat di server (`questionCorrectAnswers`) dan tidak disinkronkan ke client agar tidak bisa dibocorkan melalui Network tab browser.
-
-```typescript title="Inisialisasi GameRoom Sisi Server"
-async onCreate(options: any) {
-    this.setState(new GameState());
-
-    // Mencegah Colyseus OTOMATIS menghapus room saat host me-refresh halaman
-    this.autoDispose = false;
-    this.setPatchRate(50); // 20fps patch rate
-
-    this.state.subject = options.subject || "matematika";
-    this.state.difficulty = options.difficulty || "mudah";
-    this.state.roomCode = options.roomCode || this.generateRoomCode();
-
-    // SECURITY: Ambil soal langsung dari Supabase Utama di sisi server
-    if (options.quizId) {
-        const { data: quizRow } = await supabaseUtama
-            .from("quizzes")
-            .select("questions, title, category, language")
-            .eq("id", options.quizId)
-            .single();
-
-        if (quizRow && Array.isArray(quizRow.questions)) {
-            let rawQuestions = [...quizRow.questions];
-            // Acak urutan soal
-            rawQuestions.sort(() => Math.random() - 0.5);
-            // Batasi jumlah soal sesuai pilihan host
-            const questionCount = parseInt(String(options.questionCount)) || 0;
-            if (questionCount > 0 && rawQuestions.length > questionCount) {
-                rawQuestions = rawQuestions.slice(0, questionCount);
-            }
-
-            // Simpan ke array server-private
-            this.serverQuestions = rawQuestions;
-        }
-    }
-```
-
----
-
-### 4. Setup Metadata, Sub-Rooms, & Simpan ke Database
-**Modul:** Setup Metadata & Sub-Rooms
-
-Server kemudian membagi kapasitas room, mengatur metadata publik untuk lobby, dan membuat baris record awal di database:
-
-1. **Publish Metadata:** Client yang mencari room via `getAvailableRooms()` dapat membaca metadata publik (`roomCode`, `sessionId`, `isStarted: false`).
-2. **Inisialisasi Sub-Rooms:** Kapasitas lobi maksimum adalah 51 pemain, yang dipecah ke dalam beberapa sub-room/pulau (misalnya per 4-8 pemain tergantung difficulty).
-3. **Simpan Sesi Awal ke Database (`game_sessions`):** Membuat record berstatus `"waiting"` sebelum pemain mana pun masuk.
-
-```typescript title="Setup Metadata & Simpan Sesi Database"
-    // 1. Simpan metadata agar bisa dicari pemain di lobby
-    this.setMetadata({
-        roomCode: this.state.roomCode,
-        sessionId: options.sessionId,
-        hostId: this.originalHostId,
-        isStarted: false,
-    });
-
-    // 2. Simpan record sesi ke tabel Supabase Utama (status: 'waiting')
-    await this.retryAsync(
-        async () => {
-            await this.saveInitialSessionToMainSupabase();
-        },
-        { label: "saveInitialSession", maxAttempts: 5, delayMs: 2000 }
-    );
-
-    // 3. Konfigurasi Sub-Rooms sesuai tingkat kesulitan
-    this.maxClients = 51; // 50 pemain + 1 host
-    const config = ROOM_CONFIG[this.state.difficulty as keyof typeof ROOM_CONFIG];
-    const subRoomCapacity = config ? config.maxPlayers : 4;
-    const totalSubRooms = Math.ceil(this.maxClients / subRoomCapacity);
-
-    for (let i = 1; i <= totalSubRooms; i++) {
-        const sub = new SubRoom();
-        sub.id = `Room ${i}`;
-        sub.capacity = subRoomCapacity;
-        this.state.subRooms.push(sub);
-    }
-
-    // 4. Pasang event handler pesan jaringan
-    this.setupMessages();
-}
-```
+Dengan langkah ini, server siap menerima permintaan pembuatan room baru dari Host dan mengelola sinkronisasi multi-klien secara real-time.

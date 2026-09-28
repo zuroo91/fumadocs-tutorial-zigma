@@ -1,207 +1,104 @@
 ---
 title: Sistem Result
-description: Alur dan cara kerja sistem Player Result setelah kuis selesai.
+description: Langkah demi langkah membangun antarmuka kartu evaluasi skor personal dan analisis performa kuis bagi Player.
 icon: Award
 ---
 
-Sistem **Player Result** (halaman hasil personal pemain setelah menyelesaikan kuis) dikelola oleh class **`ResultManager`** pada modul hasil permainan Player.
+# Membangun Kartu Hasil Personal (ResultManager)
 
-Halaman ini menampilkan kartu ringkasan skor dan pencapaian individu pemain secara interaktif dalam orientasi *portrait* di perangkat mobile/desktop.
-
-Berikut analisis arsitektur dan alur kerjanya berdasarkan kode sumber:
+Pada modul ini, kamu akan membangun **`ResultManager`** yang bertanggung jawab merender kartu evaluasi nilai personal pemain setelah sesi kuis berakhir, menampilkan total skor, akurasi pengerjaan, dan status peringkat.
 
 ---
 
-### 1. Inisialisasi & Preservasi State (`sessionStorage`)
+## Langkah 1: Mendefinisikan Struktur Data Hasil Player
 
-Saat pemain selesai menjawab kuis atau waktu habis, `ResultManager` membaca data peringkat (*leaderboardData*). Jika pemain me-refresh browser, data hasil tetap aman karena dicadangkan di `sessionStorage`:
+Buat interface ringkasan performa di `client/src/types/result.ts`:
 
-```typescript title="Inisialisasi & Preservasi State Sesi"
-start(data?: { room?: any; leaderboardData?: any[]; supabaseSessionId?: string }) {
-    document.title = "Result | Zigma";
-    // Paksa orientasi portrait di mobile
-    OrientationManager.requirePortrait(
-        i18n.t("player_result.portrait_req_title"),
-        i18n.t("player_result.portrait_req_desc")
-    );
-
-    let registryRankings = data?.leaderboardData || [];
-    this.room = data?.room;
-    
-    // Simpan data ke sessionStorage untuk mencegah data hilang saat refresh halaman
-    if (registryRankings.length > 0) {
-        this.rankings = registryRankings;
-        this.mySessionId = this.room?.sessionId || "";
-        this.isGameEnded = this.room?.state?.isGameOver === true;
-
-        sessionStorage.setItem("playerResultState", JSON.stringify({
-            rankings: this.rankings,
-            mySessionId: this.mySessionId,
-            roomId: this.roomId,
-            supabaseSessionId: this.supabaseSessionId,
-            questionTotal: finalTotal,
-            isGameEnded: this.isGameEnded
-        }));
-    } else {
-        // Fallback: pulihkan state dari sessionStorage
-        const savedState = sessionStorage.getItem("playerResultState");
-        if (savedState) {
-            const parsed = JSON.parse(savedState);
-            this.rankings = parsed.rankings;
-            this.mySessionId = parsed.mySessionId;
-            this.isGameEnded = parsed.isGameEnded === true;
-        }
-    }
+```typescript title="client/src/types/result.ts"
+export interface PlayerResultSummary {
+  nickname: string;
+  hairOption: string;
+  score: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  timeSpentSeconds: number;
+  rank: number;
 }
 ```
 
 ---
 
-### 2. Identifikasi Pemain & Ekstraksi Data Hasil
+## Langkah 2: Membangun Komponen Kartu Hasil (ResultManager)
 
-Sistem mencocokkan `mySessionId` pemain dengan array `rankings` untuk mengambil metrik pencapaian (Rank, Score, Benar/Salah, Durasi):
+Buat file `client/src/scenes/player/ResultManager.ts`:
 
-```typescript title="Ekstraksi Data Hasil Player"
-private renderIndividualResult() {
-    const roomCode = this.room?.state?.roomCode || localStorage.getItem('currentRoomCode') || '';
-    Router.navigate(`/player/${roomCode}/result`);
+```typescript title="client/src/scenes/player/ResultManager.ts"
+import type { PlayerResultSummary } from '../../types/result';
 
-    // Cari data milik pemain ini di antara seluruh peserta
-    const myEntry = this.rankings.find((p) => p.sessionId === this.mySessionId) || this.rankings[0];
-    if (!myEntry) return;
+export class ResultManager {
+  private container: HTMLDivElement;
 
-    // Format durasi pengerjaan ke format mm:ss
-    const formatTime = (ms: number) => {
-        const totalSeconds = Math.floor(ms / 1000);
-        const mins = Math.floor(totalSeconds / 60);
-        const secs = totalSeconds % 60;
-        return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-    };
-    
-    // Ambil inisial nama jika avatar gambar tidak tersedia
-    const getInitials = (name: string) => {
-        const cleanName = (name || "?").trim();
-        return cleanName.length <= 1 ? cleanName.toUpperCase() : (cleanName[0].toUpperCase() + cleanName[1].toLowerCase());
-    };
-}
-```
+  constructor(summary: PlayerResultSummary, onBackHome: () => void) {
+    this.container = document.createElement('div');
+    this.container.id = 'player-result-view';
+    this.container.className = 'fixed inset-0 bg-gray-950 text-white flex items-center justify-center p-4 z-50 overflow-y-auto animate-fade-in';
 
----
+    this.render(summary, onBackHome);
+    document.body.appendChild(this.container);
+  }
 
-### 3. Rendering Kartu Hasil (Result Card) & 4 Stat Box
+  private render(data: PlayerResultSummary, onBackHome: () => void) {
+    const accuracy = Math.round((data.correctAnswers / Math.max(1, data.totalQuestions)) * 100);
 
-Data ditampilkan dalam kartu visual bergaya retro pixelated dengan 4 metrik utama:
-1. **Rank**: Peringkat pemain (`#1`, `#2`, dst.)
-2. **Score**: Skor akhir (maksimal 100)
-3. **Correct**: Jumlah jawaban benar terhadap total soal (`correctAnswers / questionTotal`)
-4. **Time**: Total waktu yang dihabiskan untuk menyelesaikan kuis
+    this.container.innerHTML = `
+      <div class="bg-gray-900 border border-gray-800 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl">
+        <span class="text-xs uppercase tracking-widest text-teal-400 font-bold">HASIL PERTANDINGAN</span>
+        <h2 class="text-3xl font-extrabold mt-1 mb-6 text-white">${data.nickname}</h2>
 
-```typescript title="Struktur HTML Result Card"
-<div class="result-card pointer-events-auto">
-    <!-- Avatar Pemain / Fallback Inisial -->
-    <div class="result-avatar-container" style="background: #336B23; color: white;">
-        ${myEntry.avatarUrl
-            ? `<img src="${upscaleAvatarUrl(myEntry.avatarUrl)}" class="result-avatar-img" />`
-            : `<div class="initial-fallback text-6xl">${getInitials(myEntry.name)}</div>`
-        }
-    </div>
-    
-    <div class="result-name" id="player-result-name">${myEntry.name}</div>
-    
-    <!-- 4 Kotak Statistik -->
-    <div class="result-stats-row">
-        <div class="stat-box">
-            <span class="material-symbols-outlined stat-icon">military_tech</span>
-            <div class="stat-value">#${myEntry.rank}</div>
-            <div class="stat-label">${i18n.t("player_result.rank")}</div>
+        <!-- Lingkaran Skor Besar -->
+        <div class="relative w-36 h-36 mx-auto mb-6 flex flex-col items-center justify-center bg-gradient-to-tr from-purple-900/80 to-teal-900/80 rounded-full border-4 border-teal-400 shadow-xl">
+          <span class="text-4xl font-black text-white font-mono">${data.score}</span>
+          <span class="text-xs text-teal-200 font-semibold uppercase">Poin Total</span>
         </div>
-        <div class="stat-box">
-            <span class="material-symbols-outlined stat-icon">workspace_premium</span>
-            <div class="stat-value">${Math.min(100, Math.round(myEntry.score))}</div>
-            <div class="stat-label">${i18n.t("player_result.score")}</div>
+
+        <!-- Statistik Performa -->
+        <div class="grid grid-cols-2 gap-3 mb-8 text-left">
+          <div class="bg-gray-800/80 p-3 rounded-xl border border-gray-700/50">
+            <span class="text-xs text-gray-400">Peringkat</span>
+            <p class="text-lg font-bold text-yellow-400 font-mono">#${data.rank}</p>
+          </div>
+          <div class="bg-gray-800/80 p-3 rounded-xl border border-gray-700/50">
+            <span class="text-xs text-gray-400">Akurasi</span>
+            <p class="text-lg font-bold text-teal-300 font-mono">${accuracy}%</p>
+          </div>
+          <div class="bg-gray-800/80 p-3 rounded-xl border border-gray-700/50">
+            <span class="text-xs text-gray-400">Benar / Total</span>
+            <p class="text-lg font-bold text-white font-mono">${data.correctAnswers} / ${data.totalQuestions}</p>
+          </div>
+          <div class="bg-gray-800/80 p-3 rounded-xl border border-gray-700/50">
+            <span class="text-xs text-gray-400">Durasi</span>
+            <p class="text-lg font-bold text-gray-300 font-mono">${data.timeSpentSeconds}s</p>
+          </div>
         </div>
-        <div class="stat-box">
-            <span class="material-symbols-outlined stat-icon">task_alt</span>
-            <div class="stat-value">${myEntry.correctAnswers}/${questionTotal}</div>
-            <div class="stat-label">${i18n.t("player_result.correct")}</div>
-        </div>
-        <div class="stat-box">
-            <span class="material-symbols-outlined stat-icon">schedule</span>
-            <div class="stat-value">${formatTime(myEntry.duration)}</div>
-            <div class="stat-label">${i18n.t("player_result.time")}</div>
-        </div>
-    </div>
-</div>
-```
 
----
+        <!-- Tombol Selesai -->
+        <button id="btn-result-home" class="w-full py-3 bg-gradient-to-r from-purple-600 to-teal-500 hover:from-purple-500 hover:to-teal-400 rounded-xl font-bold transition shadow-lg">
+          Kembali ke Beranda
+        </button>
+      </div>
+    `;
 
-### 4. Sinkronisasi Real-time dengan Server Colyseus
-
-Ketika pemain sudah di halaman result tetapi room kuis secara keseluruhan baru berakhir (misal karena host klik End Game atau timer habis), Colyseus mengirim pesan `gameEnded`:
-
-```typescript title="Sinkronisasi Pesan Server Colyseus"
-this.room.onMessage("gameEnded", (msgData: { rankings: any[] }) => {
-    this.rankings = msgData.rankings;
-    this.isGameEnded = true; // Buka kunci tombol Statistics
-
-    sessionStorage.setItem("playerResultState", JSON.stringify({
-        rankings: this.rankings,
-        mySessionId: this.mySessionId,
-        roomId: this.roomId,
-        supabaseSessionId: this.supabaseSessionId,
-        isGameEnded: true,
-    }));
-
-    // Render ulang kartu dengan peringkat final
-    this.renderIndividualResult();
-    
-    // Sinkronkan data hasil ke database utama (Supabase)
-    this.triggerSyncResults();
-});
-
-// Jika Host menekan "Play Again" / restart game
-this.room.onMessage("gameRestarted", (msgData: { roomCode: string }) => {
-    TransitionManager.close(() => {
-        this.cleanup();
-        Router.navigate(`/player/${msgData.roomCode}/waiting`);
-        import('../../../lobby/page').then((m) => new m.LobbyManager().init());
+    document.getElementById('btn-result-home')?.addEventListener('click', () => {
+      this.destroy();
+      onBackHome();
     });
-});
-```
+  }
 
----
-
-### 5. Tombol Aksi: Home & Statistik Eksternal
-
-Terdapat dua tombol navigasi di bagian bawah (footer):
-1. **Home (`#lb-home-btn`)**: Mengirim sinyal `manualPlayerLeave` ke server, membersihkan session, dan kembali ke halaman utama `/`.
-2. **Stats (`#lb-stats-btn`)**: Terkunci (*disabled*) sampai seluruh sesi kuis selesai (`isGameEnded = true`). Ketika aktif, tombol ini membuka statistik detail di platform GameForSmart.
-
-```typescript title="Penanganan Tombol Home & Statistik"
-// 1. Tombol Keluar (Home)
-const attachHomeHandler = (btn: HTMLElement | null) => {
-    btn.onclick = () => {
-        if (this.room) {
-            try { this.room.send("manualPlayerLeave"); } catch (e) {}
-            this.room.leave(true);
-        }
-        TransitionManager.transitionTo(() => {
-            this.cleanup();
-            SessionStore.clearAll();
-            window.location.replace("/");
-        });
-    };
-};
-
-// 2. Tombol Buka Statistik
-private openStats() {
-    if (!this.isGameEnded) return; // Mencegah dibuka sebelum kuis benar-benar berakhir
-    const sid = this.supabaseSessionId || localStorage.getItem('supabaseSessionId') || '';
-    
-    openGameForSmartStats(
-        this.room || { metadata: { sessionId: sid } },
-        () => alert(i18n.t("player_result.no_session"))
-    );
+  public destroy() {
+    this.container.remove();
+  }
 }
 ```
+
+* **File dibuat**: `client/src/scenes/player/ResultManager.ts`
+* **Fungsi**: Merender kartu ringkasan hasil personal kuis dan menghubungkan navigasi kembali ke beranda.

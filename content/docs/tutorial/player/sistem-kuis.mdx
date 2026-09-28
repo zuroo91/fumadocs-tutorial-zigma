@@ -1,101 +1,170 @@
 ---
 title: Sistem Quiz
-description: Mekanika modal interaktif kuis, batas waktu, opsi jawaban teks/gambar, dan validasi server-side.
+description: Langkah demi langkah membangun evaluasi hitbox tebasan pedang, transisi kamera sinematik, dan modal kuis interaktif QuizPopup.
 icon: CircleHelp
 ---
 
-# Sistem Quiz
+# Membangun Sistem Aksi & Modal Kuis (QuizPopup)
 
-Inti dari permainan Zigma adalah **eksplorasi arena $\rightarrow$ serang monster $\rightarrow$ jawab kuis $\rightarrow$ peroleh skor**. 
+Pada modul ini, kamu akan membangun logika deteksi tebasan pedang (*Attack Cone Hitbox*), transisi kamera sinematik zoom-in ke monster, serta komponen overlay DOM **`QuizPopup`** untuk menyajikan pertanyaan kuis secara interaktif.
 
-Ketika pemain menebas monster musuh di peta 2D, kamera melakukan zoom dramatis dan antarmuka **`QuizPopup`** muncul di layar.
-
-![Antarmuka Modal Kuis (QuizPopup)](/images/sistem-kuis.png)
+![Modal Kuis Interaktif Zigma](/images/sistem-kuis.png)
 
 ---
 
-## 1. Antarmuka Modal Kuis (QuizPopup)
+## Langkah 1: Membangun Evaluasi Hitbox Serangan Pedang
 
-Komponen `QuizPopup` dirender sebagai modal overlay di atas canvas Phaser:
+Di dalam `client/src/scenes/player/GameScene.ts`, buat metode untuk mengevaluasi apakah tebasan pedang mengenai monster musuh di depannya:
 
-* **Teks & Gambar Soal**: Mendukung soal teks biasa maupun soal yang dilengkapi ilustrasi gambar (`imageUrl`).
-* **Jenis Pilihan Jawaban**:
-  * Pilihan ganda teks (A, B, C, D)
-  * Pilihan ganda gambar (*image options*)
-* **Indikator Progres**: Menampilkan nomor soal saat ini terhadap total batas soal (misal: `Soal 3 / 10`).
+```typescript title="client/src/scenes/player/GameScene.ts (Hitbox Serangan)"
+performAttackHitbox(isFacingLeft: boolean) {
+  const attackRange = 50; // Jangkauan tebasan dalam pixel
+  const angleTolerance = Math.PI / 3; // Sudut kerucut serang 60 derajat
 
-```typescript title="Modul Antarmuka QuizPopup"
+  this.enemiesGroup.getChildren().forEach((enemyObj: any) => {
+    const enemy = enemyObj as Phaser.Physics.Arcade.Sprite;
+    const dist = Phaser.Math.Distance.Between(
+      this.playerSprite.x, this.playerSprite.y,
+      enemy.x, enemy.y
+    );
+
+    if (dist <= attackRange) {
+      const angleToEnemy = Phaser.Math.Angle.Between(
+        this.playerSprite.x, this.playerSprite.y,
+        enemy.x, enemy.y
+      );
+      const facingAngle = isFacingLeft ? Math.PI : 0;
+      const angleDiff = Phaser.Math.Angle.Wrap(angleToEnemy - facingAngle);
+
+      // Jika monster berada di dalam kerucut depan karakter
+      if (Math.abs(angleDiff) <= angleTolerance) {
+        this.triggerQuizInteraction(enemy);
+      }
+    }
+  });
+}
+```
+
+* **Fungsi**: Memeriksa koordinat jarak dan orientasi hadap pemain saat tombol serang ditekan.
+
+---
+
+## Langkah 2: Mengimplementasikan Transisi Kamera Sinematik
+
+Saat tebasan terkonfirmasi mengenai monster, kunci pergerakan karakter dan jalankan animasi kamera:
+
+```typescript title="client/src/scenes/player/GameScene.ts (Kamera Sinematik)"
+triggerQuizInteraction(enemySprite: Phaser.Physics.Arcade.Sprite) {
+  // Hentikan sementara kontrol karakter
+  this.playerSprite.setVelocity(0, 0);
+  this.isInteracting = true;
+
+  // Animasi kamera fokus dan zoom ke monster
+  this.cameras.main.stopFollow();
+  this.cameras.main.pan(enemySprite.x, enemySprite.y, 800, 'Power2');
+  this.cameras.main.zoomTo(3.5, 1000, 'Power2');
+
+  // Tampilkan Modal Kuis setelah zoom selesai
+  this.time.delayedCall(1000, () => {
+    this.openQuizPopup(enemySprite);
+  });
+}
+```
+
+---
+
+## Langkah 3: Membangun Komponen DOM Modal Kuis (QuizPopup)
+
+Buat file `client/src/components/QuizPopup.ts`:
+
+```typescript title="client/src/components/QuizPopup.ts"
+export interface QuizQuestionData {
+  id: string;
+  questionText: string;
+  imageUrl?: string;
+  options: { key: string; text: string }[];
+  durationSeconds: number;
+}
+
 export class QuizPopup {
-    show(question: any, onAnswer: (answerIndex: number) => void) {
-        this.renderQuestionContent(question);
-        this.renderOptions(question.options, onAnswer);
-        this.container.classList.remove('hidden');
-    }
-}
-```
+  private container: HTMLDivElement;
+  private timerInterval: any;
+  private timeRemaining: number;
+  private totalDuration: number;
 
----
+  constructor(
+    data: QuizQuestionData,
+    onAnswer: (selectedOption: string, ratio: number) => void,
+    onTimeout: () => void
+  ) {
+    this.totalDuration = data.durationSeconds || 20;
+    this.timeRemaining = this.totalDuration;
 
-## 2. Pengiriman Jawaban dari Client
+    this.container = document.createElement('div');
+    this.container.id = 'quiz-popup-overlay';
+    this.container.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-40 animate-fade-in';
 
-Ketika pemain memilih salah satu opsi jawaban:
-1. Tombol pilihan jawaban langsung dinonaktifkan (`disabled = true`) untuk mencegah *double submission*.
-2. Client mengirim sinyal `answerQuestion` ke server Colyseus dengan ID soal dan indeks jawaban yang dipilih.
-3. Client menunggu respon evaluasi dari server sebelum menutup modal atau menampilkan efek visual.
+    this.render(data, onAnswer, onTimeout);
+    document.body.appendChild(this.container);
+    this.startTimer(onTimeout);
+  }
 
-```typescript title="Pengiriman Sinyal Jawaban Client"
-handleAnswerSelect(answerIndex: number) {
-    if (this.isSubmittingAnswer) return;
-    this.isSubmittingAnswer = true;
+  private render(data: QuizQuestionData, onAnswer: Function, onTimeout: Function) {
+    this.container.innerHTML = `
+      <div class="bg-gray-900 border-2 border-purple-500/50 rounded-3xl p-6 max-w-xl w-full text-white shadow-2xl">
+        <!-- Bilah Timer Countdown -->
+        <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden mb-6">
+          <div id="quiz-timer-bar" class="bg-gradient-to-r from-teal-400 to-purple-500 h-full w-full transition-all duration-1000"></div>
+        </div>
 
-    // Kirim jawaban ke server Colyseus untuk divalidasi
-    this.room.send("answerQuestion", {
-        questionId: this.activeQuestionId,
-        answerId: answerIndex,
-        isFromChest: this.isChestPopupVisible
+        <!-- Pertanyaan -->
+        <h2 class="text-xl font-bold text-center mb-6 leading-relaxed">${data.questionText}</h2>
+
+        <!-- Opsi Jawaban (Grid 2x2) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          ${data.options.map(opt => `
+            <button class="btn-option p-4 bg-gray-800 hover:bg-purple-900/60 border border-gray-700 hover:border-purple-400 rounded-2xl font-semibold text-left transition transform active:scale-98 flex items-center gap-3" data-key="${opt.key}">
+              <span class="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center font-bold text-xs text-purple-300 uppercase">${opt.key}</span>
+              <span class="text-sm">${opt.text}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    // Event listener tombol opsi
+    this.container.querySelectorAll('.btn-option').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        clearInterval(this.timerInterval);
+        const selectedKey = (e.currentTarget as HTMLElement).getAttribute('data-key') || '';
+        const ratio = this.timeRemaining / this.totalDuration;
+        this.destroy();
+        onAnswer(selectedKey, ratio);
+      });
     });
+  }
+
+  private startTimer(onTimeout: Function) {
+    const bar = document.getElementById('quiz-timer-bar');
+    this.timerInterval = setInterval(() => {
+      this.timeRemaining--;
+      if (bar) {
+        bar.style.width = `${(this.timeRemaining / this.totalDuration) * 100}%`;
+      }
+      if (this.timeRemaining <= 0) {
+        clearInterval(this.timerInterval);
+        this.destroy();
+        onTimeout();
+      }
+    }, 1000);
+  }
+
+  public destroy() {
+    clearInterval(this.timerInterval);
+    this.container.remove();
+  }
 }
 ```
 
----
-
-## 3. Validasi Otoritatif di Sisi Server
-
-Server Colyseus menerima pesan `answerQuestion` dan membandingkan jawaban pemain dengan kunci jawaban privat yang disimpan di memori server:
-
-```typescript title="Validasi Otoritatif di Sisi Server"
-this.onMessage("answerQuestion", (client, data) => {
-    if (this.state.isGameOver) return;
-
-    // Validasi kunci jawaban di sisi server
-    const isCorrect = this.isAnswerCorrect(data.questionId, data.answerId);
-
-    if (isCorrect) {
-        // Berikan skor proporsional dan tandai monster mati
-        this.applyCorrectAnswer(client, data);
-        client.send("answerResult", { correct: true, questionId: data.questionId });
-    } else {
-        // Catat kesalahan untuk statistik (skor tidak dikurangi)
-        this.applyWrongAnswer(client, data);
-        client.send("answerResult", { correct: false, questionId: data.questionId });
-    }
-});
-```
-
----
-
-## 4. Efek Visual Setelah Menjawab
-
-Setelah menerima pesan `answerResult` dari server:
-* **Jika Benar**:
-  * Opsi yang dipilih menyala hijau.
-  * Audio SFX sukses diputar (`AudioManager.getInstance().playSFX('sfx_correct')`).
-  * Monster pembawa soal musnah dari arena (`enemy.isAlive = false`).
-  * Modal kuis tertutup otomatis setelah jeda singkat (600ms).
-* **Jika Salah**:
-  * Opsi yang dipilih menyala merah.
-  * Audio SFX salah diputar (`AudioManager.getInstance().playSFX('sfx_wrong')`).
-  * Monster melepaskan diri dan kembali lari menjauh.
-  * Pemain dapat mencoba memulihkan nilai soal tersebut bila menemukan peti harta karun (*chest*).
-
-Lanjutkan ke [Scoring & Rewards →](/docs/tutorial/host/progress-rewards) atau [Sistem Result →](/docs/tutorial/player/sistem-result).
+* **File dibuat**: `client/src/components/QuizPopup.ts`
+* **Fungsi**: Menyajikan pertanyaan kuis responsif dengan timer countdown visual dan pengiriman rasio waktu.

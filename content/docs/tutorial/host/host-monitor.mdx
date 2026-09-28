@@ -1,240 +1,120 @@
 ---
 title: Host Monitor
-description: Alur dan cara kerja sistem Host Monitor (Spectator/Progress Scene).
+description: Langkah demi langkah membangun scene live spectator Host, visualisasi pergerakan karakter 2D, dan sinkronisasi bilah progres siswa.
 icon: Eye
 ---
 
-Sistem **Host Monitor** (*Spectator/Progress Scene*) dikelola oleh class `HostProgressScene` pada modul pemantauan pertandingan Host.
+# Membangun Host Live Spectator & Progress Monitor
 
-Scene ini bertindak sebagai ruang pemantauan visual real-time bagi Host saat kuis sedang berjalan. Host dapat melihat seluruh pemain bergerak di dalam map, progres pengerjaan soal masing-masing pemain, sisa waktu kuis, serta memiliki kendali untuk mengakhiri permainan.
+Pada modul ini, kamu akan membangun **`HostProgressScene`** yang bertindak sebagai layar live spectator. Scene ini menggabungkan rendering peta 2D Phaser 3 untuk melihat seluruh pemain bergerak secara real-time dan bilah overlay HTML untuk memantau progres pengerjaan soal setiap siswa.
 
-Berikut analisis arsitektur dan alur kerjanya berdasarkan kode sumber:
-
-![Layar Host Progress Monitoring](/images/host-monitor.png)
+![Host Monitor Zigma](/images/host-monitor.png)
 
 ---
 
-### 1. Validasi Keamanan Host & Proteksi Navigasi
-Sebelum merender map dan memantau room, sistem memastikan user yang membuka halaman ini adalah benar-benar host yang sah:
+## Langkah 1: Membangun Scene Phaser Spectator (HostProgressScene)
 
-```typescript title="Validasi Keamanan & Akses Host"
-private _setupScene() {
-    SessionStore.set('gameStarted', 'true', 'host');
-    this.registry.set('room', this.room);
-    const profile = authService.getStoredProfile();
-    const hostUserId = (this.room as any)?.metadata?.hostId;
-    if (profile && hostUserId) {
-        const identityCandidates = [profile.id, profile.auth_user_id]
-            .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-            .map(v => String(v).trim().toLowerCase());
-        const hostIdNorm = String(hostUserId).trim().toLowerCase();
-        
-        // Blokir jika user bukan host dari room ini
-        if (!identityCandidates.includes(hostIdNorm)) {
-            console.error("[Spectator] Security block: Current logged-in user is not the host of this room!");
-            window.location.replace('/');
-            return;
-        }
-    }
-    
-    // Cegah tombol back browser merusak game
-    const currentUrl = window.location.pathname;
-    window.history.pushState({ zigmaHostProgress: true }, '', currentUrl);
-    this._popStateHandler = () => {
-        window.history.pushState({}, '', currentUrl);
-        this.showEndGamePopup(); // Tampilkan popup konfirmasi akhiri kuis jika menekan back
-    };
-    window.addEventListener('popstate', this._popStateHandler);
-}
-```
+Buat file `client/src/scenes/host/HostProgressScene.ts`:
 
----
+```typescript title="client/src/scenes/host/HostProgressScene.ts"
+import Phaser from 'phaser';
+import { RoomService } from '../../services/room/RoomService';
+import type { Room } from 'colyseus.js';
 
-### 2. Sinkronisasi State Colyseus & Auto-Recovery
-Host memantau event dari Colyseus room seperti waktu countdown awal, sinkronisasi timer kuis, dan mekanisme auto-reconnect tanpa kehilangan data:
+export class HostProgressScene extends Phaser.Scene {
+  private roomService = RoomService.getInstance();
+  private room: Room | null = null;
+  private playerSprites: { [id: string]: Phaser.GameObjects.Sprite } = {};
 
-```typescript title="Sinkronisasi State & Auto-Recovery"
-private _registerRoomListeners(room: Room) {
-    // 1. Timer update dari server
-    room.onMessage('timerUpdate', (data: { remaining: number }) => {
-        this.updateTimer(data.remaining);
-    });
-    // 2. Countdown 3-2-1 Go
-    room.state.listen("countdown", (val: number) => {
-        if (val > 0) {
-            TransitionManager.setCountdownText(val.toString());
-        } else if (val === 0) {
-            TransitionManager.setCountdownText(i18n.t('game.go'));
-        }
-    });
-    // 3. Robust Reconnection jika koneksi host terputus sementara
-    room.onLeave((code) => {
-        if (this.isEnding) return;
-        if (code !== 1000 && !this.isTransitioning) {
-            restoreRoomConnection({
-                client,
-                role: 'host',
-                isHost: true,
-                roomId: savedRoomId,
-                onStatus: (msg) => showRestoreBanner(msg),
-            }).then((newRoom) => {
-                if (newRoom) this.scene.restart({ room: newRoom });
-            });
-        }
-    });
-}
-```
+  constructor() {
+    super({ key: 'HostProgressScene' });
+  }
 
----
+  create() {
+    this.room = this.roomService.getActiveRoom();
+    if (!this.room) return;
 
-### 3. Kontrol Kamera Host (Free-Pan & Zoom)
-Host dapat memperbesar, memperkecil, atau menggeser (*drag/pan*) kamera untuk mengawasi sudut peta tertentu:
+    // 1. Memuat Peta & Tilemap Arena
+    const map = this.make.tilemap({ key: 'arena_map' });
+    const tileset = map.addTilesetImage('tileset_dungeon', 'tiles');
+    map.createLayer('Ground', tileset!, 0, 0);
+    map.createLayer('Obstacles', tileset!, 0, 0);
 
-```typescript title="Kontrol Kamera Spectator"
-// Zoom menggunakan scroll wheel mouse
-this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
-    const newZoom = this.cameras.main.zoom - (deltaY * 0.001);
-    this.cameras.main.setZoom(Phaser.Math.Clamp(newZoom, this.minZoom, 3.0));
-});
-// Drag & Pan kamera dengan klik-tahan mouse
-this.input.on('pointerdown', (pointer) => {
-    if (pointer.button === 2) return;
-    this.isDragPan = true;
-    this.dragOrigin = new Phaser.Math.Vector2(pointer.x, pointer.y);
-});
-this.input.on('pointermove', (pointer) => {
-    if (this.isDragPan && this.dragOrigin) {
-        const deltaX = pointer.x - this.dragOrigin.x;
-        const deltaY = pointer.y - this.dragOrigin.y;
-        this.cameras.main.scrollX -= deltaX / this.cameras.main.zoom;
-        this.cameras.main.scrollY -= deltaY / this.cameras.main.zoom;
-        this.dragOrigin.set(pointer.x, pointer.y);
-    }
-});
-this.input.on('pointerup', () => this.isDragPan = false);
-```
+    // 2. Listener Sinkronisasi Pergerakan Pemain
+    this.room.state.players.onAdd((player, sessionId) => {
+      if (!player.isHost) {
+        const sprite = this.add.sprite(player.x, player.y, `body_human`);
+        this.playerSprites[sessionId] = sprite;
 
----
-
-### 4. Pelacakan Pemain & Progress Bar Real-time
-Setiap pemain yang masuk (`players.onAdd`) dirender sebagai container berisi sprite karakter, rambut, nama, serta progress bar yang menghitung rasio soal yang sudah dijawab:
-
-```typescript title="Pelacakan & Progress Bar Player"
-const handlePlayerAdd = (player: any, sessionId: string) => {
-    if (player.isHost) return; // Host tidak memiliki avatar playable
-    const container = this.add.container(player.x, player.y).setScale(2.5);
-    const baseSprite = this.add.sprite(0, 0, 'character').play('idle');
-    const toolsSprite = this.add.sprite(0, 0, 'tools_idle').play('tools_idle');
-    const hairSprite = this.add.sprite(0, 0, '').setVisible(false);
-    container.add([baseSprite, toolsSprite, hairSprite]);
-    this.createNameTag(sessionId, player.name || 'Player', container);
-    this.playerEntities[sessionId] = container;
-
-    // Kalkulasi dan render progres kuis pemain
-    const updateProgress = () => {
-        const progressBar = container.getData('progressBar') as Phaser.GameObjects.Graphics;
-        const answered = player.answeredQuestions || 0;
-        const qLimit = this.room.state.questionLimit;
-        const target = (qLimit === 'all' || !qLimit) 
-            ? this.room.state.totalQuestions 
-            : parseInt(qLimit) || 5;
-        const progress = Phaser.Math.Clamp(answered / target, 0, 1);
-        if (progressBar) {
-            progressBar.clear();
-            // Background bar
-            progressBar.fillStyle(0x000000, 0.5);
-            progressBar.fillRect(0, 0, 36, 5);
-            // Hijau terang menunjukkan rasio progres
-            progressBar.fillStyle(0x00ff88, 1);
-            progressBar.fillRect(0, 0, 36 * progress, 5);
-            progressBar.lineStyle(1, 0x000000, 1);
-            progressBar.strokeRect(0, 0, 36, 5);
-        }
-    };
-
-    // Dengarkan perubahan state tiap ada soal yang dijawab / pergerakan
-    this.disposers.push(player.onChange(() => {
-        container.setData({ targetX: player.x, targetY: player.y });
-        updateHair();
-        updateProgress();
-    }));
-};
-```
-
----
-
-### 5. Render Loop & Interpolasi Animasi (`update`)
-Di setiap frame (`update`), posisi karakter dihaluskan menggunakan interpolasi LERP (`container.x += (tx - container.x) * 0.25`) dan status animasi diganti secara dinamis antara `attack`, `walk`, atau `idle`:
-
-```typescript title="Interpolasi Pergerakan & Animasi Karakter"
-update(time: number, delta: number) {
-    if (!this.room || !this.room.state) return;
-    Object.keys(this.playerEntities).forEach(sessionId => {
-        const container = this.playerEntities[sessionId];
-        const player = this.room.state.players.get(sessionId);
-        const tx = container.getData('targetX');
-        const ty = container.getData('targetY');
-        if (tx !== undefined && ty !== undefined) {
-            // Interpolasi posisi mulus
-            container.x += (tx - container.x) * 0.25;
-            container.y += (ty - container.y) * 0.25;
-            const dx = tx - container.x;
-            const dy = ty - container.y;
-            const isMoving = Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5;
-
-            // State animasi: Attack saat menebas pohon/batu soal kuis
-            if (player?.isAttacking) {
-                base.play('base_attack', true);
-                tools.play('tools_attack', true);
-            } else if (isMoving) {
-                base.play('walk', true);
-                tools.play('tools_walk', true);
-                // Flip arah pandang horizontal
-                if (Math.abs(dx) > 0.1) {
-                    base.setFlipX(dx < 0);
-                    tools.setFlipX(dx < 0);
-                }
-            } else {
-                base.play('idle', true);
-                tools.play('tools_idle', true);
-            }
-        }
-    });
-}
-```
-
----
-
-### 6. Kontrol Akhiri Permainan (End Game by Host)
-Host memiliki tombol darurat di pojok kanan bawah untuk mengakhiri kuis sebelum timer habis. Saat dikonfirmasi, pesan dikirim ke Colyseus server:
-
-```typescript title="Fungsi Konfirmasi Akhiri Kuis"
-showEndGamePopup() {
-    // ...menampilkan modal konfirmasi "Akhiri Permainan?"...
-    yesBtn.onclick = () => {
-        yesBtn.disabled = true;
-        // Kirim event ke Colyseus room
-        if (this.room && this.room.connection.isOpen) {
-            this.room.send('hostEndGame');
-        }
-        closePopup();
-    };
-}
-```
-
-Ketika server merespon dengan pesan `gameEnded`, host otomatis diarahkan ke halaman Leaderboard:
-
-```typescript title="Respon Event Game Ended"
-room.onMessage('gameEnded', (data: any) => {
-    this.isEnding = true;
-    this.registry.set('leaderboardData', data.rankings);
-    TransitionManager.close(() => {
-        import('../../../lobby/page').then(lobbyM => {
-            if (lobbyM.LobbyManager.activeManager) {
-                // Pindah ke scene Host Leaderboard
-                (lobbyM.LobbyManager.activeManager as any).currentActiveRoute = 'HostLeaderboardManager';
-            }
+        // Listener perubahan posisi pemain
+        player.onChange(() => {
+          sprite.setPosition(player.x, player.y);
         });
+      }
     });
-});
+
+    this.room.state.players.onRemove((player, sessionId) => {
+      if (this.playerSprites[sessionId]) {
+        this.playerSprites[sessionId].destroy();
+        delete this.playerSprites[sessionId];
+      }
+    });
+
+    // 3. Render Overlay Bilah Progres Siswa
+    this.createProgressOverlay();
+  }
+
+  private createProgressOverlay() {
+    const overlay = document.createElement('div');
+    overlay.id = 'host-progress-overlay';
+    overlay.className = 'fixed top-4 right-4 w-80 bg-gray-900/90 border border-gray-800 rounded-2xl p-4 text-white z-20 max-h-[80vh] overflow-y-auto';
+
+    overlay.innerHTML = `
+      <div class="flex justify-between items-center mb-3">
+        <h4 class="font-bold text-sm text-teal-400">Progres Kuis Peserta</h4>
+        <button id="btn-end-game" class="px-3 py-1 bg-red-600 hover:bg-red-500 rounded-lg text-xs font-bold transition">
+          End Game
+        </button>
+      </div>
+      <div id="progress-list" class="space-y-2"></div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('btn-end-game')?.addEventListener('click', () => {
+      this.room?.send("HOST_END_GAME");
+      window.location.hash = `#/host/${this.room?.state.roomCode}/leaderboard`;
+    });
+
+    this.updateProgressList();
+  }
+
+  private updateProgressList() {
+    const list = document.getElementById('progress-list');
+    if (!list || !this.room) return;
+
+    list.innerHTML = '';
+    this.room.state.players.forEach((player) => {
+      if (!player.isHost) {
+        const item = document.createElement('div');
+        item.className = 'text-xs bg-gray-800 p-2 rounded-lg';
+        const percent = Math.min(100, Math.round((player.answeredCount / 10) * 100));
+
+        item.innerHTML = `
+          <div class="flex justify-between mb-1">
+            <span class="font-semibold truncate">${player.nickname}</span>
+            <span class="text-teal-300">${player.score} Pts (${player.answeredCount}/10)</span>
+          </div>
+          <div class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+            <div class="bg-teal-400 h-full transition-all duration-300" style="width: ${percent}%"></div>
+          </div>
+        `;
+        list.appendChild(item);
+      }
+    });
+  }
+}
 ```
+
+* **File dibuat**: `client/src/scenes/host/HostProgressScene.ts`
+* **Fungsi**: Memantau posisi visual seluruh karakter di arena dan merender bilah capaian kuis secara dinamis.

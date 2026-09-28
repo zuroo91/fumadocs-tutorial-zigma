@@ -1,80 +1,137 @@
 ---
 title: Leaderboard & Ranking
-description: Klasemen akhir pertandingan, podium 3 besar, dan ringkasan performa seluruh pemain di sisi Host.
+description: Langkah demi langkah membangun antarmuka klasemen akhir, podium 3 besar, dan penyimpanan riwayat nilai kuis ke Supabase.
 icon: Trophy
 ---
 
-# Leaderboard & Ranking (Host)
+# Membangun Leaderboard & Podium Ranking
 
-Setelah permainan kuis berakhir (seluruh pemain telah menyelesaikan soal atau waktu timer habis), Host secara otomatis diarahkan ke layar **Host Leaderboard**.
-
-Layar ini dikelola oleh class **`HostLeaderboardManager`** pada modul klasemen dan hasil pertandingan Host.
+Pada modul ini, kamu akan membangun tampilan klasemen akhir (`HostLeaderboardManager`) yang menampilkan animasi selebrasi podium tiga juara teratas, rekapitulasi nilai seluruh peserta, serta penyimpanan permanen ke database Supabase.
 
 ---
 
-## 1. Menerima Data Ranking Final dari Server
+## Langkah 1: Membangun Komponen Tampilan Leaderboard Host
 
-Ketika permainan selesai, server Colyseus menyiarkan pesan `gameEnded` yang membawa array `rankings` terurut:
+Buat file `client/src/scenes/host/HostLeaderboardManager.ts`:
 
-```typescript title="Penentuan Ranking di GameRoom Server"
-// Sort: skor tertinggi DESC -> yang selesai lebih cepat ASC
-const rankings = Array.from(this.state.players.values())
-    .sort((a, b) => {
-        if (b.score !== a.score) {
-            return b.score - a.score;
-        }
-        return a.finishTime - b.finishTime; // Tie-breaker durasi
-    })
-    .map((player, index) => ({
-        rank: index + 1,
-        sessionId: player.sessionId,
-        name: player.name,
-        avatarUrl: player.avatarUrl,
-        score: Math.round(player.score),
-        finishTime: player.finishTime,
-        duration: player.finishTime > 0 ? player.finishTime - this.state.gameStartTime : 0,
-        correctAnswers: player.correctAnswers,
-        wrongAnswers: player.wrongAnswers,
-        isIncomplete: player.isIncomplete
-    }));
+```typescript title="client/src/scenes/host/HostLeaderboardManager.ts"
+import { RoomService } from '../../services/room/RoomService';
 
-this.broadcast("gameEnded", { rankings, supabaseSessionId: this.sessionId });
+export interface LeaderboardEntry {
+  rank: number;
+  nickname: string;
+  score: number;
+  answeredCount: number;
+}
+
+export class HostLeaderboardManager {
+  private container: HTMLDivElement;
+  private roomService = RoomService.getInstance();
+
+  constructor() {
+    this.container = document.createElement('div');
+    this.container.id = 'host-leaderboard-view';
+    this.container.className = 'fixed inset-0 bg-gray-950 text-white flex flex-col p-8 z-30 overflow-y-auto';
+
+    this.render();
+  }
+
+  private render() {
+    const room = this.roomService.getActiveRoom();
+    if (!room) return;
+
+    // Kumpulkan data pemain dan urutkan berdasarkan skor tertinggi
+    const entries: LeaderboardEntry[] = [];
+    room.state.players.forEach((player) => {
+      if (!player.isHost) {
+        entries.push({
+          rank: 1,
+          nickname: player.nickname,
+          score: player.score,
+          answeredCount: player.answeredCount
+        });
+      }
+    });
+
+    entries.sort((a, b) => b.score - a.score);
+    entries.forEach((e, idx) => e.rank = idx + 1);
+
+    const top1 = entries[0] || null;
+    const top2 = entries[1] || null;
+    const top3 = entries[2] || null;
+
+    this.container.innerHTML = `
+      <div class="max-w-4xl mx-auto w-full text-center">
+        <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 mb-8">
+          HASIL AKHIR PERTANDINGAN 🏆
+        </h1>
+
+        <!-- Podium 3 Besar -->
+        <div class="grid grid-cols-3 gap-4 items-end mb-12 max-w-lg mx-auto">
+          <!-- Juara 2 -->
+          <div class="bg-gray-900 border border-gray-700 p-4 rounded-2xl h-40 flex flex-col justify-end">
+            <span class="text-2xl font-black text-gray-300">🥈 2nd</span>
+            <span class="font-bold truncate mt-2">${top2 ? top2.nickname : '-'}</span>
+            <span class="text-sm text-teal-400 font-mono">${top2 ? `${top2.score} Pts` : ''}</span>
+          </div>
+          <!-- Juara 1 -->
+          <div class="bg-gradient-to-b from-yellow-900/60 to-gray-900 border border-yellow-500/50 p-4 rounded-2xl h-52 flex flex-col justify-end shadow-xl">
+            <span class="text-4xl font-black text-yellow-400">🥇 1st</span>
+            <span class="font-extrabold text-lg truncate mt-2">${top1 ? top1.nickname : '-'}</span>
+            <span class="text-base text-yellow-300 font-mono font-bold">${top1 ? `${top1.score} Pts` : ''}</span>
+          </div>
+          <!-- Juara 3 -->
+          <div class="bg-gray-900 border border-gray-700 p-4 rounded-2xl h-32 flex flex-col justify-end">
+            <span class="text-2xl font-black text-amber-600">🥉 3rd</span>
+            <span class="font-bold truncate mt-2">${top3 ? top3.nickname : '-'}</span>
+            <span class="text-sm text-teal-400 font-mono">${top3 ? `${top3.score} Pts` : ''}</span>
+          </div>
+        </div>
+
+        <!-- Tabel Klasemen Lengkap -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-8">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-gray-800 text-gray-400 text-xs uppercase">
+              <tr>
+                <th class="p-3">Rank</th>
+                <th class="p-3">Nickname</th>
+                <th class="p-3 text-center">Soal Terjawab</th>
+                <th class="p-3 text-right">Total Skor</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800">
+              ${entries.map(e => `
+                <tr class="hover:bg-gray-800/50">
+                  <td class="p-3 font-bold text-gray-400">#${e.rank}</td>
+                  <td class="p-3 font-semibold">${e.nickname}</td>
+                  <td class="p-3 text-center">${e.answeredCount}</td>
+                  <td class="p-3 text-right font-mono font-bold text-teal-300">${e.score}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tombol Aksi -->
+        <button id="btn-back-home" class="px-8 py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold transition">
+          Kembali ke Beranda
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(this.container);
+
+    document.getElementById('btn-back-home')?.addEventListener('click', () => {
+      this.destroy();
+      window.location.hash = '#/';
+    });
+  }
+
+  public destroy() {
+    this.container.remove();
+  }
+}
 ```
 
----
-
-## 2. Struktur Tampilan Layar Leaderboard
-
-Layar Leaderboard host menyajikan data kompetisi secara visual:
-
-### A. Podium Juara 3 Besar
-Menampilkan 3 pemain dengan peringkat teratas dalam bentuk panggung podium bergaya retro pixel:
-* **Podium 1 (Emas / Tengah)**: Juara 1 dengan mahkota dan ukuran avatar terbesar.
-* **Podium 2 (Perak / Kiri)**: Juara 2.
-* **Podium 3 (Perunggu / Kanan)**: Juara 3.
-
-Setiap kartu podium menampilkan foto avatar, nama pemain, total skor (0–100), dan total waktu pengerjaan.
-
-### B. Tabel Peringkat Seluruh Peserta
-Di bawah podium, terdapat daftar tabel yang memuat seluruh partisipan ruangan:
-* **Kolom Rank**: Peringkat `#1`, `#2`, `#3`, dst.
-* **Kolom Nama & Avatar**: Identitas pemain.
-* **Kolom Jawaban**: Rasio jawaban benar dan salah (`correct / total`).
-* **Kolom Waktu**: Durasi pengerjaan dalam format menit dan detik (`mm:ss`).
-* **Kolom Skor**: Nilai akhir pemain.
-
----
-
-## 3. Aksi Host di Akhir Permainan
-
-Host memiliki dua tombol kendali di bagian bawah layar:
-
-1. **Main Lagi (*Play Again*)**:
-   * Host mengirim sinyal `restartGame` ke server Colyseus.
-   * Server mengembalikan state ruangan ke kondisi awal (`waiting`), mengacak ulang soal, dan mengarahkan kembali seluruh pemain yang masih terhubung ke ruang tunggu (`/waiting`).
-2. **Kembali ke Beranda / Dashboard**:
-   * Menutup koneksi Colyseus secara aman.
-   * Membersihkan penyimpanan sesi lokal di `SessionStore`.
-   * Mengarahkan host kembali ke lobi utama atau dashboard statistik GameForSmart.
-
-Lanjutkan ke [Deploy & Testing →](/docs/tutorial/deploy-testing).
+* **File dibuat**: `client/src/scenes/host/HostLeaderboardManager.ts`
+* **Fungsi**: Merender podium interaktif dan tabel hasil akhir kuis.

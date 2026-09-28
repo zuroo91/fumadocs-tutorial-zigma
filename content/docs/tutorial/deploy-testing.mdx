@@ -1,84 +1,139 @@
 ---
 title: Deploy & Testing
-description: Pengujian beban dengan Bot Simulator, monitoring room Colyseus, dan build production Zigma.
+description: Langkah demi langkah membangun BotSimulatorManager untuk load testing room dan persiapan deployment server produksi Zigma.
 icon: CheckCheck
 ---
 
-# Deploy & Testing
+# Membangun Bot Simulator & Testing
 
-Sebelum merilis perubahan ke lingkungan produksi, Zigma menyediakan perkakas pengujian terintegrasi untuk memvalidasi performa multiplayer dan kestabilan game server.
+Pada modul ini, kamu akan membangun **`BotSimulatorManager`** untuk melakukan load testing room Colyseus dengan mensimulasikan banyak klien bot otomatis yang bergabung, bergerak, dan menjawab soal kuis secara acak.
 
 ---
 
-## 1. Bot Simulator (`/test`)
+## Langkah 1: Membangun Kelas Bot Simulator
 
-Zigma menyertakan **Bot Simulator** bawaan yang dapat diakses melalui rute `/test` (dikelola oleh modul simulator bot dan antarmuka `bot.html`).
+Buat file `client/src/test/BotSimulatorManager.ts`:
 
-Perkakas ini memungkinkan pengembang untuk:
-* Memasukkan PIN ruangan tertentu.
-* Menginjeksikan puluhan bot pemain sekaligus ke dalam room Colyseus.
-* Mensimulasikan bot menjawab kuis secara acak atau otomatis.
-* Menguji batas kapasitas sub-room (hingga 50 bot) dan mengukur latensi WebSocket server.
+```typescript title="client/src/test/BotSimulatorManager.ts"
+import { Client } from 'colyseus.js';
 
-```typescript title="Modul Bot Simulator"
-// Inisialisasi simulator bot
+export interface BotConfig {
+  count: number;
+  roomCode: string;
+  moveIntervalMs: number;
+  answerDelayMs: number;
+}
+
 export class BotSimulatorManager {
-    async spawnBots(roomCode: string, botCount: number) {
-        for (let i = 0; i < botCount; i++) {
-            const bot = new BotInstance(`Bot_${i + 1}`);
-            await bot.join(roomCode);
-        }
+  private bots: any[] = [];
+  private serverUrl: string;
+
+  constructor(serverUrl: string) {
+    this.serverUrl = serverUrl;
+  }
+
+  async spawnBots(config: BotConfig) {
+    console.log(`Menjalankan ${config.count} bot ke room ${config.roomCode}...`);
+
+    for (let i = 0; i < config.count; i++) {
+      await this.spawnSingleBot(config, i + 1);
+      // Jeda 200ms antar spawn agar server tidak overload
+      await new Promise(res => setTimeout(res, 200));
     }
+
+    console.log(`${config.count} bot berhasil terhubung.`);
+  }
+
+  private async spawnSingleBot(config: BotConfig, botIndex: number) {
+    try {
+      const client = new Client(this.serverUrl);
+      const room = await client.joinOrCreate("game_room", {
+        roomCode: config.roomCode,
+        nickname: `Bot_${botIndex}`,
+        hairOption: 'SHORT',
+        isHost: false
+      });
+
+      this.bots.push(room);
+
+      // Pergerakan acak berulang
+      const moveInterval = setInterval(() => {
+        const x = 100 + Math.random() * 800;
+        const y = 100 + Math.random() * 600;
+        room.send("PLAYER_MOVE", { x: Math.round(x), y: Math.round(y) });
+      }, config.moveIntervalMs || 1000);
+
+      // Simulasi menjawab soal acak
+      room.onMessage("QUIZ_QUESTION", (data: any) => {
+        setTimeout(() => {
+          const options = ['A', 'B', 'C', 'D'];
+          const randomAnswer = options[Math.floor(Math.random() * 4)];
+          room.send("SUBMIT_ANSWER", {
+            questionId: data.id,
+            selectedOption: randomAnswer,
+            timeRemainingRatio: Math.random()
+          });
+        }, config.answerDelayMs || 2000);
+      });
+
+      room.onLeave(() => clearInterval(moveInterval));
+    } catch (err) {
+      console.error(`Gagal menjalankan bot #${botIndex}:`, err);
+    }
+  }
+
+  disconnectAll() {
+    this.bots.forEach(room => room.leave());
+    this.bots = [];
+    console.log('Semua bot telah diputus koneksinya.');
+  }
 }
 ```
 
----
-
-## 2. Pemantauan Real-Time Colyseus (`/colyseus`)
-
-Server Express menyediakan antarmuka web bawaan melalui package `@colyseus/monitor` untuk memeriksa metrik server secara langsung:
-
-* **URL Akses**: `http://localhost:2567/colyseus` (atau domain produksi).
-* **Informasi yang Ditampilkan**:
-  * Daftar seluruh room aktif beserta `roomCode` dan `roomId`.
-  * Jumlah klien yang terhubung ke setiap room.
-  * Konsumsi memori heap dan proses CPU.
-  * Opsi untuk menutup (*force dispose*) room tertentu secara manual bila diperlukan.
+* **File dibuat**: `client/src/test/BotSimulatorManager.ts`
+* **Fungsi**: Mensimulasikan puluhan klien pemain virtual secara bersamaan untuk menguji stabilitas server.
 
 ---
 
-## 3. Validasi Tipe & Build Produksi
+## Langkah 2: Menjalankan Simulasi dari Skrip CLI
 
-Jalankan perintah berikut pada root project:
+Buat skrip pengujian `test/run-bots.ts` di sisi server atau di direktori root project:
 
-### A. Typecheck Seluruh Workspace
-```bash
-npm run typecheck
+```typescript title="test/run-bots.ts"
+import { BotSimulatorManager } from '../client/src/test/BotSimulatorManager';
+
+const simulator = new BotSimulatorManager('http://localhost:2567');
+
+simulator.spawnBots({
+  count: 20,
+  roomCode: '849201', // Ganti dengan PIN room aktif
+  moveIntervalMs: 800,
+  answerDelayMs: 3000
+});
+
+// Hentikan simulasi setelah 2 menit
+setTimeout(() => {
+  simulator.disconnectAll();
+  process.exit(0);
+}, 2 * 60 * 1000);
 ```
-* Memvalidasi seluruh tipe TypeScript pada `client` (`tsc --noEmit`) dan `server` (`tsc --noEmit`).
 
-### B. Build Produksi
-```bash
-npm run build
-```
-1. `npm run build --prefix client`: Mengompilasi asset Vite dan menempatkan output ke folder `server/public`.
-2. `npm run build --prefix server`: Mengompilasi kode backend TypeScript ke folder `server/build` dan menyalin file tilemap Tiled (`map_easy.json`, `map_medium.json`, `map_hard.json`).
+Jalankan dengan `ts-node test/run-bots.ts` untuk memulai simulasi beban.
 
 ---
 
-## 4. Menjalankan di Lingkungan Produksi (PM2)
+## Langkah 3: Memantau Performa Room Colyseus
 
-Di server Linux/VPS produksi, jalankan service menggunakan file konfigurasi PM2:
+Colyseus menyediakan built-in monitor dashboard di endpoint `/colyseus` jika diaktifkan di server:
 
-```bash
-# Menjalankan 2 worker cluster
-pm2 start server/ecosystem.config.js
+```typescript title="server/src/server.ts (Monitor Dashboard)"
+import { monitor } from '@colyseus/monitor';
 
-# Melihat status cluster
-pm2 status
-
-# Memeriksa log aktivitas
-pm2 logs Zigma
+// Tambahkan setelah deklarasi app Express
+app.use('/colyseus', monitor());
 ```
 
-Kembali ke [Overview Tutorial →](/docs/tutorial).
+Buka `http://localhost:2567/colyseus` di browser untuk melihat:
+* Jumlah room aktif dan klien yang terhubung
+* Ukuran state room dan frekuensi update
+* Latency rata-rata WebSocket setiap koneksi

@@ -1,131 +1,159 @@
 ---
 title: Host Lobby
-description: Alur dan cara kerja komponen Host Lobby.
+description: Langkah demi langkah membangun antarmuka ruang tunggu Host, generator QR Code, dan sinkronisasi daftar peserta di Zigma.
 icon: Users
 ---
 
-**Host Lobby** dikelola oleh class **`HostWaitingRoomScene`** pada modul antarmuka Host Waiting Room. Scene ini bertindak sebagai ruang kendali utama bagi host setelah room permainan berhasil dibuat dan sebelum pertandingan dimulai.
+# Membangun Host Lobby & QR Code Generator
 
-Berikut adalah alur cara kerja host lobby yang dipecah secara modular berdasarkan fiturnya:
+Pada modul ini, kamu akan membangun tampilan ruang tunggu Host (`HostWaitingRoomScene`) yang bertugas menampilkan PIN 6-digit, me-render QR Code join menggunakan library `qrcode`, serta memantau daftar peserta yang masuk secara real-time.
 
-![Ruang Tunggu Host (Host Lobby)](/images/host-lobby.png)
+![Host Lobby Zigma](/images/host-lobby.png)
 
 ---
 
-### 1. Menampilkan PIN Room & QR Code Pemain
-Saat lobby dimuat, scene mendengarkan perubahan \`roomCode\` dari state Colyseus. PIN ditampilkan di layar, dan QR Code di-*generate* secara dinamis agar pemain mobile bisa langsung scan untuk bergabung:
+## Langkah 1: Membangun Generator QR Code Interaktif
 
-```typescript
-// Mendengarkan kode room dari server state
-this.room.state.listen("roomCode", (code: string) => {
-    if (this.roomCodeEl) this.roomCodeEl.innerText = code || '------';
-    this.updateQrCode(code);   // Generate QR Code untuk join cepat
-    this.updateJoinUrl(code);  // Update link invite
-});
+Buat file utilitas `client/src/utils/qrGenerator.ts` menggunakan library `qrcode` untuk menghasilkan gambar data URL QR Code dari link room:
+
+```typescript title="client/src/utils/qrGenerator.ts"
+import QRCode from 'qrcode';
+
+export async function generateRoomQRCode(roomCode: string): Promise<string> {
+  const joinUrl = `${window.location.origin}/#/join?pin=${roomCode}`;
+  try {
+    return await QRCode.toDataURL(joinUrl, {
+      width: 256,
+      margin: 2,
+      color: {
+        dark: '#2D3436',
+        light: '#FFFFFF'
+      }
+    });
+  } catch (err) {
+    console.error('Gagal membuat QR Code:', err);
+    return '';
+  }
+}
 ```
 
+* **File dibuat**: `client/src/utils/qrGenerator.ts`
+* **Fungsi**: Mengonversi URL room Zigma menjadi gambar base64 QR Code siap render.
+
 ---
 
-### 2. Sinkronisasi Daftar Pemain Real-Time
-Host lobby tidak melakukan polling HTTP, melainkan memanfaatkan event listener state Colyseus (\`onAdd\` dan \`onRemove\`). Setiap kali ada pemain baru yang join atau keluar, tampilan langsung di-update secara otomatis:
+## Langkah 2: Membangun Komponen Antarmuka Host Lobby
 
-```typescript
-setupStateListeners() {
-    // Pemain baru masuk room
-    this.room.state.players.onAdd((player: any) => {
-        this.updateAll(); // Update jumlah dan kartu pemain
-        player.listen("name", () => this.updateAll());
-        player.listen("hairId", () => this.updateAll()); // Update jika ganti rambut
+Buat file `client/src/scenes/host/HostWaitingRoomScene.ts` untuk mengelola UI ruang tunggu Host:
+
+```typescript title="client/src/scenes/host/HostWaitingRoomScene.ts"
+import { RoomService } from '../../services/room/RoomService';
+import { generateRoomQRCode } from '../../utils/qrGenerator';
+
+export class HostWaitingRoomScene {
+  private container: HTMLDivElement;
+  private roomService = RoomService.getInstance();
+  private roomCode: string;
+
+  constructor(roomCode: string) {
+    this.roomCode = roomCode;
+    this.container = document.createElement('div');
+    this.container.id = 'host-lobby-view';
+    this.container.className = 'fixed inset-0 bg-gray-950 text-white flex flex-col p-8 z-20';
+
+    this.init();
+  }
+
+  private async init() {
+    const qrDataUrl = await generateRoomQRCode(this.roomCode);
+
+    this.container.innerHTML = `
+      <!-- Header PIN & QR -->
+      <div class="flex justify-between items-center bg-gray-900/80 p-6 rounded-2xl border border-gray-800 mb-8">
+        <div>
+          <span class="text-sm text-gray-400 uppercase tracking-wider">PIN GAME</span>
+          <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-teal-300 font-mono tracking-widest">${this.roomCode}</h1>
+        </div>
+        <div class="flex items-center gap-4">
+          <img src="${qrDataUrl}" alt="QR Code" class="w-24 h-24 rounded-xl border-2 border-purple-500 shadow-md" />
+          <div class="text-right">
+            <span id="player-count" class="text-2xl font-bold text-teal-400">0</span>
+            <p class="text-xs text-gray-400">Pemain Bergabung</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daftar Kartu Pemain -->
+      <div class="flex-1 overflow-y-auto">
+        <h3 class="text-lg font-bold text-gray-300 mb-4">Daftar Pemain:</h3>
+        <div id="player-grid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4"></div>
+      </div>
+
+      <!-- Tombol Start Game -->
+      <div class="flex justify-end pt-4 border-t border-gray-800">
+        <button id="btn-start-game" class="px-8 py-4 bg-gradient-to-r from-purple-600 to-teal-500 hover:from-purple-500 hover:to-teal-400 font-extrabold text-lg rounded-2xl shadow-xl transition transform active:scale-95">
+          Mulai Permainan 🚀
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(this.container);
+    this.setupListeners();
+  }
+
+  private setupListeners() {
+    const room = this.roomService.getActiveRoom();
+    if (!room) return;
+
+    // Sinkronisasi penambahan pemain baru
+    room.state.players.onAdd((player, sessionId) => {
+      this.updatePlayerGrid();
     });
 
-    // Pemain keluar / terputus
-    this.room.state.players.onRemove(() => this.updateAll());
+    // Sinkronisasi pengurangan pemain saat keluar
+    room.state.players.onRemove((player, sessionId) => {
+      this.updatePlayerGrid();
+    });
+
+    // Tombol Mulai Game
+    document.getElementById('btn-start-game')?.addEventListener('click', () => {
+      room.send("START_GAME");
+      window.location.hash = `#/host/${this.roomCode}/progress`;
+    });
+  }
+
+  private updatePlayerGrid() {
+    const room = this.roomService.getActiveRoom();
+    const grid = document.getElementById('player-grid');
+    const countEl = document.getElementById('player-count');
+    if (!room || !grid || !countEl) return;
+
+    grid.innerHTML = '';
+    let count = 0;
+
+    room.state.players.forEach((player) => {
+      if (!player.isHost) {
+        count++;
+        const card = document.createElement('div');
+        card.className = 'bg-gray-900 border border-gray-800 p-3 rounded-xl flex items-center gap-3 animate-fade-in';
+        card.innerHTML = `
+          <div class="w-10 h-10 bg-purple-900/50 rounded-lg flex items-center justify-center font-bold text-purple-300">
+            ${player.nickname.charAt(0).toUpperCase()}
+          </div>
+          <span class="font-semibold text-sm truncate">${player.nickname}</span>
+        `;
+        grid.appendChild(card);
+      }
+    });
+
+    countEl.textContent = count.toString();
+  }
+
+  public destroy() {
+    this.container.remove();
+  }
 }
 ```
 
----
-
-### 3. Rendering Grid Pemain & Fitur Kick Player
-Di dalam fungsi \`updatePlayerGrid()\`, setiap pemain yang terhubung dirender dalam bentuk kartu avatar pixel art. Khusus bagi host, disediakan tombol **Kick (Silang Merah)** pada kartu pemain lain:
-
-```typescript
-// 1. Tampilkan tombol kick khusus untuk host
-let kickButtonHTML = '';
-if (this.isHost && !isMe) {
-    kickButtonHTML = \`
-        <button class="kick-btn absolute bg-red-500 rounded-full"
-            onclick="window.confirmKick('\${player.sessionId}', '\${player.name}')">
-            <span class="material-symbols-outlined">close</span>
-        </button>
-    \`;
-}
-
-// 2. Saat kick dikonfirmasi, kirim sinyal ke server Colyseus
-document.getElementById('confirm-kick')?.addEventListener('click', () => {
-    this.room.send("kickPlayer", { sessionId });
-});
-```
-
-> **Validasi Tombol Start:** Jika belum ada pemain yang bergabung (\`players.length === 0\`), tombol \`Start Game\` otomatis dinonaktifkan (\`disabled = true\`). Tombol baru aktif jika minimal ada 1 pemain.
-
----
-
-### 4. Memulai Permainan & Countdown Sinkron
-Ketika host menekan tombol **Start Game**:
-1. Host mengirim pesan \`startGame\` ke server.
-2. Server mengunci room (\`lock()\`), mengatur \`isPreparing: true\`, lalu memulai countdown mundur 10 detik.
-3. Host lobby memutar SFX countdown dan menampilkan angka hitung mundur raksasa di layar.
-4. Saat countdown menyentuh angka 0 (\`"GO!"\`), host lobby otomatis berpindah ke **\`HostProgressScene\`** untuk memantau skor pemain.
-
-```typescript
-// A. Host menekan tombol Start Game
-handleStartGame() {
-    this.isGameStarting = true;
-    this.startBtn.disabled = true;
-    this.room.send("startGame"); // Beri tahu server Colyseus
-}
-
-// B. Sinkronisasi hitung mundur 10 detik dari server
-this.room.state.listen("countdown", (val: number) => {
-    if (val > 0) {
-        AudioManager.getInstance().playCountdownSFX();
-        TransitionManager.setCountdownText(val.toString());
-    } else if (val === 0) {
-        TransitionManager.setCountdownText("GO!");
-        setTimeout(() => {
-            // Pindah ke scene monitoring progress pertandingan
-            this.scene.start('HostProgressScene', { room: this.room });
-        }, 100);
-    }
-});
-```
-
----
-
-### 5. Pembatalan Room & Tombol Keluar
-Jika host menekan tombol kembali/keluar, room tidak dibiarkan menggantung:
-1. Client mengirim sinyal \`manualPlayerLeave\` ke server.
-2. Menghapus sesi dari database Supabase (\`deleteSession(roomCode, 'host')\`).
-3. Membersihkan seluruh data sesi lokal di \`SessionStore\` & \`localStorage\` agar tidak terjadi *ghost reconnection*.
-
-```typescript
-async leaveRoom() {
-    this.isManuallyLeaving = true;
-    
-    // Kirim sinyal ke server
-    this.room.send("manualPlayerLeave");
-
-    // Hapus sesi game dari database Supabase
-    const roomCode = this.room.state.roomCode;
-    if (roomCode) {
-        deleteSession(roomCode, 'host');
-    }
-
-    // Bersihkan session storage host
-    SessionStore.clearGameSession('host');
-    localStorage.removeItem('lastGameOptions');
-
-    // Kembali ke halaman beranda
-    window.location.replace('/');
-}
-```
+* **File dibuat**: `client/src/scenes/host/HostWaitingRoomScene.ts`
+* **Fungsi**: Menangani visualisasi ruang tunggu dan memicu event `START_GAME` ke server.

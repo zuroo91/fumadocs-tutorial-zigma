@@ -1,101 +1,161 @@
 ---
 title: Homepage & Dashboard
-description: Alur entry point client, bootstrap antarmuka, navigasi menu utama, dan manajemen profil pemain.
+description: Langkah demi langkah membangun antarmuka beranda, DOM overlay di atas canvas Phaser, dan sistem kustomisasi avatar di Zigma.
 icon: LayoutDashboard
 ---
 
-# Homepage & Dashboard
+# Membangun Homepage & Kustomisasi Avatar
 
-Halaman utama Zigma bertindak sebagai gerbang navigasi utama bagi pengguna setelah melewati pemeriksaan autentikasi.
+Halaman beranda Zigma dibangun dengan menggabungkan **rendering canvas Phaser 3** untuk background animasi dan **overlay DOM HTML/TailwindCSS** untuk formulir input interaktif.
 
-Berbeda dengan aplikasi React biasa, Zigma menggunakan **TypeScript DOM bootstrap** yang memuat overlay HTML/TailwindCSS di atas canvas Phaser 3.
+![Tampilan Beranda Zigma](/images/homepage.png)
 
 ---
 
-## 1. Bootstrap Utama Aplikasi
+## Langkah 1: Mendefinisikan Opsi Gaya Rambut Karakter
 
-Fungsi `bootstrap()` bertanggung jawab atas inisialisasi awal seluruh aplikasi:
+Buat file `client/src/constants/character.ts` untuk mendefinisikan seluruh varian rambut yang dapat dipilih oleh pemain:
 
-1. **Sinkronisasi Bahasa (`initLanguageSync`)**: Membaca preferensi bahasa pengguna (`id`, `en`, `ar`) dan mengatur arah antarmuka (LTR atau RTL).
-2. **Penanganan OAuth Callback**: Memeriksa parameter token OAuth pada URL.
-3. **Pemeriksaan Sesi Autentikasi**:
-   * Jika belum login (`!isAuth`), sistem merender `LoginUI` dan menginisialisasi `LoginManager`.
-   * Jika sudah terautentikasi, sistem merender antarmuka lobi (`LobbyUI`, `CreateRoomUI`, `QuizSelectionUI`, dll.) dan menginisialisasi `LobbyManager`.
-
-```typescript title="Bootstrap Inisialisasi Aplikasi"
-// Periksa status autentikasi pemain
-const isAuth = await authService.isAuthenticated();
-
-if (!isAuth) {
-    const { LoginUI } = await import('./scenes/login/ui');
-    const { LoginManager } = await import('./scenes/login/page');
-    LoginUI.render();
-    const loginManager = new LoginManager();
-    await loginManager.init();
-} else {
-    // Muat UI lobi secara paralel
-    const [
-        { LobbyUI },
-        { LobbyManager },
-        { CreateRoomUI },
-        { QuizSelectionUI },
-        { QuizSettingsUI },
-    ] = await Promise.all([
-        import('./scenes/lobby/ui'),
-        import('./scenes/lobby/page'),
-        import('./scenes/lobby/create-room-ui'),
-        import('./scenes/host/selectquiz/ui'),
-        import('./scenes/host/[roomCode]/quizsetting/ui'),
-    ]);
-
-    // Render komponen DOM ke dalam container #app
-    LobbyUI.render();
-    CreateRoomUI.render();
-    QuizSelectionUI.render();
-    QuizSettingsUI.render();
-
-    const lobbyManager = new LobbyManager();
-    await lobbyManager.init();
+```typescript title="client/src/constants/character.ts"
+export interface HairOption {
+  id: string;
+  name: string;
+  spriteKey: string;
+  previewUrl: string;
 }
+
+export const HAIR_OPTIONS: HairOption[] = [
+  { id: 'BOWL', name: 'Bowl Hair', spriteKey: 'hair_bowl', previewUrl: '/images/karakter/bowlhair.png' },
+  { id: 'CURLY', name: 'Curly Hair', spriteKey: 'hair_curly', previewUrl: '/images/karakter/curlyhair.png' },
+  { id: 'LONG', name: 'Long Hair', spriteKey: 'hair_long', previewUrl: '/images/karakter/longhair.png' },
+  { id: 'MOP', name: 'Mop Hair', spriteKey: 'hair_mop', previewUrl: '/images/karakter/mophair.png' },
+  { id: 'SHORT', name: 'Short Hair', spriteKey: 'hair_short', previewUrl: '/images/karakter/shorthair.png' },
+  { id: 'SPIKEY', name: 'Spikey Hair', spriteKey: 'hair_spikey', previewUrl: '/images/karakter/spikeyhair.png' },
+];
+```
+
+* **File dibuat**: `client/src/constants/character.ts`
+* **Fungsi**: Menstandarisasi kunci sprite animasi rambut yang akan dimuat oleh engine Phaser 3.
+
+---
+
+## Langkah 2: Mengonfigurasi Multi-Bahasa (i18n)
+
+Buat file `client/src/i18n.ts` menggunakan library `i18next` untuk mendukung bahasa Indonesia, Inggris, dan Arab:
+
+```typescript title="client/src/i18n.ts"
+import i18n from 'i18next';
+
+i18n.init({
+  lng: 'id',
+  fallbackLng: 'id',
+  resources: {
+    id: {
+      translation: {
+        joinTitle: "Gabung Permainan",
+        pinPlaceholder: "Masukkan PIN 6-Digit",
+        namePlaceholder: "Masukkan Nama Kamu",
+        btnJoin: "Masuk Room",
+        btnHost: "Host Game"
+      }
+    },
+    en: {
+      translation: {
+        joinTitle: "Join Game",
+        pinPlaceholder: "Enter 6-Digit PIN",
+        namePlaceholder: "Enter Your Nickname",
+        btnJoin: "Join Room",
+        btnHost: "Host Game"
+      }
+    }
+  }
+});
+
+export default i18n;
 ```
 
 ---
 
-## 2. Menu Utama & Navigasi (`LobbyManager.ts`)
+## Langkah 3: Membangun Komponen DOM Homepage Overlay
 
-![Tampilan Beranda & Dashboard Zigma](/images/homepage.png)
+Buat file `client/src/components/HomeOverlay.ts` untuk merender elemen HTML di atas canvas game:
 
-Class `LobbyManager` mengelola interaksi di beranda:
+```typescript title="client/src/components/HomeOverlay.ts"
+import { HAIR_OPTIONS } from '../constants/character';
 
-1. **Tampilan Profil Pengguna**:
-   * Menampilkan nama panggilan (*nickname*) atau nama lengkap dari profil Supabase.
-   * Menampilkan avatar pemain. Jika gambar gagal dimuat, sistem menampilkan inisial huruf nama secara otomatis.
-2. **Opsi Host Game**:
-   * Membuka modal pemilihan kuis (`SelectQuizManager`).
-   * Mengatur parameter ruangan (waktu, tingkat kesulitan, map).
-3. **Opsi Join Game**:
-   * **Input PIN 6-digit**: Pemain mengetikkan kode unik ruangan secara langsung.
-   * **Scan QR Code**: Pemain membuka pemindai kamera via library `html5-qrcode` untuk bergabung tanpa perlu mengetik manual.
-   * **Auto-Join via URL**: Jika pemain membuka tautan dengan format `/join/:roomCode` atau parameter `?room=...`, sistem akan memproses auto-join secara otomatis.
+export class HomeOverlay {
+  private container: HTMLDivElement;
+  private selectedHairIndex = 0;
 
----
+  constructor(onJoin: (nickname: string, pin: string, hair: string) => void, onHost: () => void) {
+    this.container = document.createElement('div');
+    this.container.id = 'home-overlay';
+    this.container.className = 'absolute inset-0 flex items-center justify-center pointer-events-auto z-10';
 
-## 3. Struktur Rute Navigasi Zigma
+    this.render(onJoin, onHost);
+    document.body.appendChild(this.container);
+  }
 
-Zigma menggunakan utility router kustom (`Router.ts`) yang mengatur transisi halaman tanpa reload (*Single Page Application*):
+  private render(onJoin: Function, onHost: Function) {
+    const hair = HAIR_OPTIONS[this.selectedHairIndex];
 
-| Menu / Aksi | Rute URL | Pengelola Scene / Manager |
-|---|---|---|
-| Beranda / Lobi Utama | `/` | `LobbyManager` |
-| Login Akun | `/login` | `LoginManager` |
-| Pemilihan Kuis Host | `/host/select` | `SelectQuizManager` |
-| Pengaturan Room Host | `/host/[roomCode]/settings` | `QuizSettingManager` |
-| Ruang Tunggu Host | `/host/[roomCode]/lobby` | `HostWaitingRoomScene` |
-| Spectator Monitor Host | `/host/[roomCode]/progress` | `HostProgressScene` |
-| Ruang Tunggu Pemain | `/player/[roomCode]/waiting` | `PlayerWaitingRoomManager` |
-| Arena Permainan 2D | `/player/[roomCode]/game` | `GameScene` |
-| Kartu Hasil Pemain | `/player/[roomCode]/result` | `ResultManager` |
-| Leaderboard Akhir | `/host/[roomCode]/leaderboard` | `HostLeaderboardManager` |
-| Bot Load Testing | `/test` | `BotSimulatorManager` |
+    this.container.innerHTML = `
+      <div class="bg-gray-900/90 backdrop-blur-md p-8 rounded-2xl shadow-2xl border border-purple-500/30 w-full max-w-md text-white text-center">
+        <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-teal-300 mb-6">ZIGMA ARCADE</h1>
+        
+        <!-- Preview Karakter -->
+        <div class="flex items-center justify-center gap-4 mb-6">
+          <button id="btn-prev-hair" class="px-3 py-1 bg-gray-800 rounded-lg text-lg">◀</button>
+          <div class="flex flex-col items-center">
+            <img src="${hair.previewUrl}" alt="${hair.name}" class="w-16 h-16 object-contain image-pixelated" />
+            <span class="text-xs text-gray-400 mt-1">${hair.name}</span>
+          </div>
+          <button id="btn-next-hair" class="px-3 py-1 bg-gray-800 rounded-lg text-lg">▶</button>
+        </div>
 
-Lanjutkan ke [Host: Create Room →](/docs/tutorial/host/create-room) atau [Join Session →](/docs/tutorial/join/join-session).
+        <!-- Form Input -->
+        <input id="input-nickname" type="text" placeholder="Masukkan Nickname" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl mb-3 text-white focus:outline-none focus:border-purple-500" maxlength="15" />
+        <input id="input-pin" type="text" placeholder="PIN Room (6 Digit)" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl mb-4 text-white text-center tracking-widest font-mono text-lg focus:outline-none focus:border-purple-500" maxlength="6" />
+
+        <button id="btn-join" class="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 font-bold rounded-xl shadow-lg transition duration-200 mb-3">
+          Join Room
+        </button>
+
+        <button id="btn-host" class="w-full py-2 bg-gray-800 hover:bg-gray-700 text-sm text-gray-300 rounded-xl border border-gray-700 transition">
+          Host Game
+        </button>
+      </div>
+    `;
+
+    this.attachEvents(onJoin, onHost);
+  }
+
+  private attachEvents(onJoin: Function, onHost: Function) {
+    document.getElementById('btn-prev-hair')?.addEventListener('click', () => {
+      this.selectedHairIndex = (this.selectedHairIndex - 1 + HAIR_OPTIONS.length) % HAIR_OPTIONS.length;
+      this.render(onJoin, onHost);
+    });
+
+    document.getElementById('btn-next-hair')?.addEventListener('click', () => {
+      this.selectedHairIndex = (this.selectedHairIndex + 1) % HAIR_OPTIONS.length;
+      this.render(onJoin, onHost);
+    });
+
+    document.getElementById('btn-join')?.addEventListener('click', () => {
+      const name = (document.getElementById('input-nickname') as HTMLInputElement)?.value.trim();
+      const pin = (document.getElementById('input-pin') as HTMLInputElement)?.value.trim();
+      const hair = HAIR_OPTIONS[this.selectedHairIndex].id;
+      if (name && pin.length === 6) onJoin(name, pin, hair);
+    });
+
+    document.getElementById('btn-host')?.addEventListener('click', () => onHost());
+  }
+
+  public destroy() {
+    this.container.remove();
+  }
+}
+```
+
+* **File dibuat**: `client/src/components/HomeOverlay.ts`
+* **Fungsi**: Menyediakan antarmuka interaktif yang mudah dihubungkan ke scene Phaser dan router game.

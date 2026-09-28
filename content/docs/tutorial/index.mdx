@@ -1,49 +1,56 @@
 ---
 title: Overview Tutorial
-description: Panduan langkah demi langkah membangun game kuis multiplayer Zigma dari awal.
+description: Panduan langkah demi langkah membangun game kuis multiplayer Zigma dari nol berdasarkan source code.
 icon: GraduationCap
 ---
 
 # Tutorial Membangun Game Zigma dari Nol
 
-Panduan ini disusun secara bertahap untuk membantu kamu membangun game *Educational 2D Top-Down Multiplayer Quiz Arcade* bernama **Zigma** dari awal (*from scratch*).
+Panduan ini disusun secara bertahap untuk memandu kamu membangun game **Zigma** (*Educational 2D Top-Down Multiplayer Quiz Arcade*) dari awal (*from scratch*) berdasarkan arsitektur dan source code yang sebenarnya.
 
-Bukan sekadar menjalankan repository yang sudah jadi, tutorial ini menjelaskan setiap langkah pembuatan file, penulisan code, dan integrasi antar-modul (frontend Vite/Phaser 3, backend Express/Colyseus, dan database Supabase/Redis).
-
----
-
-## Alur Pengembangan Step-by-Step
-
-Pengembangan dibagi menjadi 5 fase logis:
-
-### Fase 1: Dasar & Setup Project
-1. **[Setup & Autentikasi](/docs/tutorial/setup-autentikasi)** — Inisialisasi tiga bagian project (`client`, `server`, `shared`) menggunakan npm workspaces, konfigurasi variabel lingkungan `.env`, dan integrasi SDK `@supabase/ssr` (`AuthService`).
-2. **[Homepage & Dashboard](/docs/tutorial/homepage-dashboard)** — Pembuatan antarmuka navigasi awal DOM HTML/CSS, opsi masuk sebagai Host atau Player, serta tampilan profil pengguna.
-
-### Fase 2: Sistem Room & Koneksi Multiplayer
-3. **[Join Session](/docs/tutorial/join/join-session)** — Penanganan form input PIN room 6-digit, validasi ke server, pemilihan avatar player, dan sinkronisasi masuk antrean lobby.
-4. **[Host: Create Room](/docs/tutorial/host/create-room)** — Penyiapan form pengaturan room host, opsi topik kuis, durasi waktu, dan pendaftaran room di server Colyseus.
-5. **[Host: Host Lobby](/docs/tutorial/host/host-lobby)** — Ruang tunggu host, penampil QR Code join, monitoring daftar pemain real-time, dan tombol trigger mulai game.
-
-### Fase 3: Real-Time Gameplay & Interactive Quiz
-6. **[Player: Mode Multipemain](/docs/tutorial/player/multiplayer)** — Menghubungkan client Phaser ke Colyseus WebSocket server (`RoomService`) dan penanganan state biner inkremental.
-7. **[Player: Sistem Gameplay](/docs/tutorial/player/sistem-gameplay)** — Rendering canvas 2D Phaser 3, tilemap Tiled, kontrol karakter top-down WASD/Joystick, serta deteksi collision monster (skeleton, goblin) dan peti harta karun (*chests*).
-8. **[Player: Sistem Quiz](/docs/tutorial/player/sistem-kuis)** — Integrasi modal overlay DOM `QuizPopup`, countdown timer kuis, animasi umpan balik jawaban, dan komunikasi verifikasi ke server.
-9. **[Host: Host Monitor](/docs/tutorial/host/host-monitor)** — Antarmuka spectator monitor live untuk host memantau posisi karakter dan perolehan skor siswa secara real-time.
-
-### Fase 4: Hasil, Scoring & Evaluasi
-10. **[Player: Sistem Result](/docs/tutorial/player/sistem-result)** — Halaman ringkasan hasil personal pemain (`ResultManager`) dengan preservasi state `sessionStorage`.
-11. **[Scoring & Rewards](/docs/tutorial/host/progress-rewards)** — Formula kalkulasi skor backend (`100/N`), perhitungan bonus kecepatan, serta buff dari peti harta karun.
-12. **[Leaderboard & Ranking](/docs/tutorial/host/leaderboard-ranking)** — Podium juara 3 besar dan klasemen skor akhir seluruh peserta.
-
-### Fase 5: Testing & Deployment
-13. **[Deploy & Testing](/docs/tutorial/deploy-testing)** — Stress test menggunakan Bot Simulator, kompilasi build production, dan prosedur deployment ke server produksi.
+Setiap modul tutorial menjelaskan **file yang dibuat/diubah**, **fungsi kode**, **alur logika antar-sistem**, dan **kode program yang dapat langsung diimplementasikan**.
 
 ---
 
-## Prinsip Pengkodean Zigma
+## Urutan Pembangunan Fitur (Roadmap)
 
-Dalam setiap langkah tutorial, perhatikan prinsip utama arsitektur Zigma:
-* **Server-Authoritative**: Seluruh perhitungan skor, posisi monster, dan validasi kuis diproses di server Colyseus (`GameRoom.ts`).
-* **Pemisahan Visual & UI**: Phaser 3 hanya menangani rendering canvas 2D (karakter, arena, tilemap), sedangkan antarmuka kuis dan menu menggunakan overlay HTML/CSS DOM dengan Tailwind CSS.
-* **Shared State Schema**: Tipe data state biner didefinisikan secara terpusat pada `shared/state.ts` menggunakan `@colyseus/schema`.
+Pembangunan Zigma dibagi menjadi beberapa tahapan modul yang terstruktur:
+
+```
+[ Setup & Autentikasi ]
+         │
+         ▼
+[ Homepage & Kustomisasi Avatar ]
+         │
+         ├───► [ Alur Player: Join Room ──► Gameplay 2D ──► QuizPopup ──► Player Result ]
+         │
+         └───► [ Alur Host: Create Room ──► Host Lobby (QR) ──► Live Spectator ──► Leaderboard ]
+         │
+         ▼
+[ Scoring & Bot Simulator Testing ]
+```
+
+---
+
+## Daftar Modul Tutorial
+
+### 1. Fondasi & Autentikasi
+* **[Setup & Autentikasi](/docs/tutorial/setup-autentikasi)** — Inisialisasi struktur workspace, konfigurasi environment, dan integrasi autentikasi SSO Supabase (`AuthService`).
+* **[Homepage & Dashboard](/docs/tutorial/homepage-dashboard)** — Membangun antarmuka beranda, bootstrap DOM di atas Phaser 3, sistem multi-bahasa, dan pemilih avatar rambut karakter.
+
+### 2. Sisi Player (Klien Peserta)
+* **[Join Session](/docs/tutorial/join/join-session)** — Mengimplementasikan form input PIN 6-digit, validasi nickname, dan scanner QR Code (`html5-qrcode`).
+* **[Mode Multipemain](/docs/tutorial/player/multiplayer)** — Membangun `RoomService` menggunakan `colyseus.js` untuk sinkronisasi state biner WebSocket secara real-time.
+* **[Sistem Gameplay](/docs/tutorial/player/sistem-gameplay)** — Membangun scene 2D Phaser 3, parsing tilemap Tiled, kontrol pergerakan (WASD & Virtual Joystick), dan interaksi peti harta karun.
+* **[Sistem Quiz](/docs/tutorial/player/sistem-kuis)** — Membangun hitbox tebasan pedang, efek kamera sinematik zoom-in, dan modal interaktif `QuizPopup`.
+* **[Sistem Result](/docs/tutorial/player/sistem-result)** — Membangun antarmuka `ResultManager` untuk kartu evaluasi nilai dan statistik personal siswa.
+
+### 3. Sisi Host (Klien Penyelenggara & Server)
+* **[Host: Create Room](/docs/tutorial/host/create-room)** — Membangun logika pembuatan room di server Colyseus (`GameRoom.ts`), query bank soal Supabase, dan pembagian PIN 6-digit.
+* **[Host: Host Lobby](/docs/tutorial/host/host-lobby)** — Membangun scene ruang tunggu `HostWaitingRoomScene`, generator QR Code join, pemantauan daftar peserta, dan broadcast mulai game.
+* **[Host: Host Monitor](/docs/tutorial/host/host-monitor)** — Membangun scene live spectator `HostProgressScene` untuk memantau pergerakan karakter dan bilah progres kuis seluruh peserta.
+* **[Scoring & Rewards](/docs/tutorial/host/progress-rewards)** — Mengimplementasikan formula kalkulasi skor authoritative server, bonus kecepatan, dan buff peti arena.
+* **[Leaderboard & Ranking](/docs/tutorial/host/leaderboard-ranking)** — Membangun tampilan podium 3 besar, tabel klasemen akhir, dan sinkronisasi hasil kuis ke PostgreSQL.
+
+### 4. Pengujian & Deployment
+* **[Deploy & Testing](/docs/tutorial/deploy-testing)** — Membangun `BotSimulatorManager` untuk simulasi beban multi-klien dan persiapan deployment server produksi.

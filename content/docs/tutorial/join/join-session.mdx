@@ -1,224 +1,147 @@
 ---
 title: Join Session
-description: Alur dan cara kerja sistem Join Session.
+description: Langkah demi langkah membangun validasi PIN 6-digit, scanner QR Code kamera, dan koneksi player ke room Colyseus.
 icon: LogIn
 ---
 
-Berikut adalah alur **Join Session** beserta kodenya secara langsung:
+# Membangun Fitur Join Session & QR Scanner
+
+Pada modul ini, kamu akan membangun logika klien untuk memvalidasi PIN 6-digit, membaca QR Code menggunakan kamera browser (`html5-qrcode`), dan menghubungkan player ke server Colyseus.
 
 ---
 
-### 1. Validasi Input PIN 6-Digit & Autentikasi Pemain
-Sebelum melakukan koneksi jaringan, input kode room diperiksa apakah berupa 6 digit alfanumerik dan profil pemain yang sedang login dimuat dari penyimpanan lokal:
+## Langkah 1: Membangun Komponen QR Code Scanner
 
-```typescript title="Validasi Input PIN & Autentikasi"
-const roomCode = code?.trim().toUpperCase();
-if (!roomCode || roomCode.length !== 6) {
-    this.showJoinFieldError('roomcode', i18n.t('lobby.join_errors.invalid_code'));
-    return;
-}
+Buat file `client/src/components/QRScannerModal.ts` menggunakan library `html5-qrcode` untuk membaca QR Code dari kamera smartphone:
 
-// Ambil profil akun pemain yang sedang login
-const profile = authService.getStoredProfile();
-if (!profile) {
-    this.showJoinError(i18n.t('lobby.join_errors.login_first'));
-    this.isJoining = false;
-    this.setBtnLoading(false);
-    return;
-}
+```typescript title="client/src/components/QRScannerModal.ts"
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
-const userId = profile.id;
-const nickname = (nameOverride || profile.nickname || profile.fullname || 'Player').trim().slice(0, 30);
-```
+export class QRScannerModal {
+  private scanner: Html5QrcodeScanner | null = null;
+  private modalContainer: HTMLDivElement;
 
----
+  constructor(onSuccess: (decodedPin: string) => void, onClose: () => void) {
+    this.modalContainer = document.createElement('div');
+    this.modalContainer.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4';
+    
+    this.modalContainer.innerHTML = `
+      <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-sm w-full text-center text-white">
+        <h3 class="text-xl font-bold mb-4">Pindai QR Code Room</h3>
+        <div id="qr-reader" class="w-full rounded-xl overflow-hidden mb-4"></div>
+        <button id="btn-close-qr" class="w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm font-semibold transition">
+          Tutup Kamera
+        </button>
+      </div>
+    `;
 
-### 2. Pencarian Room & Proteksi *Late Join*
-Client mencari ketersediaan room di server Colyseus berdasarkan metadata `roomCode`. Jika pertandingan sudah berjalan (`isStarted: true`), pemain baru ditolak untuk bergabung:
+    document.body.appendChild(this.modalContainer);
+    this.startScanner(onSuccess);
 
-```typescript title="Pencarian Room & Proteksi Late Join"
-// Cari room aktif di Colyseus
-const rooms = await this.client.getAvailableRooms("game_room");
-const targetRoom = rooms.find(r => r.metadata && r.metadata.roomCode === roomCode);
-
-if (!targetRoom) {
-    this.showJoinFieldError('roomcode', i18n.t('lobby.join_errors.room_not_found'));
-    this.isJoining = false;
-    this.setBtnLoading(false);
-    return;
-}
-
-// Blokir jika permainan sudah dimulai
-if (targetRoom.metadata && targetRoom.metadata.isStarted) {
-    alert(i18n.t('lobby.join_errors.game_started'));
-    window.location.replace('/');
-    return;
-}
-```
-
----
-
-### 3. Pre-Check Whitelist Kompetisi
-Jika room merupakan sesi kompetisi terproteksi, client mengecek apakah ID user ada di dalam daftar `allowed_user_ids` database Supabase:
-
-```typescript title="Pengecekan Whitelist Kompetisi"
-const dbSessionId = targetRoom.metadata?.sessionId;
-
-if (dbSessionId && dbSessionId !== 'undefined' && dbSessionId !== 'null') {
-    const { data: sessionData } = await supabase
-        .from('game_sessions')
-        .select('allowed_user_ids')
-        .eq('id', dbSessionId)
-        .single();
-
-    const allowed = sessionData?.allowed_user_ids;
-    if (allowed && Array.isArray(allowed) && allowed.length > 0) {
-        const allowedNorm = allowed.map((id: any) => String(id).trim().toLowerCase());
-        const candidateIds = [profile.id, profile.auth_user_id]
-            .filter(Boolean)
-            .map((id: any) => String(id).trim().toLowerCase());
-
-        const isAuthorized = candidateIds.some(cid => allowedNorm.includes(cid));
-        if (!isAuthorized) {
-            this.showAccessDeniedModal();
-            this.isJoining = false;
-            this.setBtnLoading(false);
-            return;
-        }
-    }
-}
-```
-
----
-
-### 4. Eksekusi Join & Penyimpanan Kredensial Sesi
-Client memuat preferensi karakter (`player_hair_id`), menggabungkan payload opsi join, menyambung ke room Colyseus via `joinById`, dan menyimpan token pemulihan (*reconnection token*):
-
-```typescript title="Eksekusi Join & Simpan Sesi"
-const savedHairId = localStorage.getItem('player_hair_id');
-
-const joinOptions = {
-    name: nickname,
-    userId: userId,
-    profileId: profile.id,
-    authUserId: profile.auth_user_id || undefined,
-    avatarUrl: profile.avatar_url || "",
-    hairId: savedHairId ? parseInt(savedHairId) : undefined,
-    sessionId: "", // Fresh join
-    isHost: false
-};
-
-// Bergabung ke room Colyseus
-const room = await this.client.joinById(targetRoom.roomId, joinOptions);
-
-// Simpan identitas sesi ke localStorage & SessionStore
-localStorage.setItem('currentRoomId', room.id);
-SessionStore.set('currentSessionId', room.sessionId, 'player');
-SessionStore.set('currentReconnectionToken', room.reconnectionToken, 'player');
-SessionStore.set('isHost', 'false', 'player');
-localStorage.setItem('currentRoomCode', roomCode);
-
-// Pindah rute ke ruang tunggu pemain
-TransitionManager.transitionTo(() => {
-    Router.navigate(`/player/${roomCode}/waiting`);
-    this.startManager('PlayerWaitingRoomManager', { room, isHost: false });
-});
-```
-
----
-
-### 5. Verifikasi Otoritatif di Sisi Server (`onAuth`)
-Server Colyseus menjalankan `onAuth` sebelum koneksi WebSocket diizinkan. Server memverifikasi token bearer (jika ada) dan memastikan pemain tidak melewati whitelist kompetisi:
-
-```typescript title="Verifikasi Server-Side onAuth"
-async onAuth(client: Client, options: any, request?: import("http").IncomingMessage) {
-    const pinToQuery = this.state.roomCode || options.roomCode || this.roomId;
-    const authInfo = await gameSessionStore.getAuthInfoByPin(pinToQuery);
-
-    if (!authInfo) return true;
-
-    let candidateIds = [options.profileId, options.userId, options.authUserId]
-        .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-        .map((v) => v.trim().toLowerCase());
-
-    const allowedIds = Array.isArray(authInfo.allowed_user_ids)
-        ? authInfo.allowed_user_ids.map((id: any) => String(id).trim().toLowerCase())
-        : [];
-
-    const isHostClient = options.isHost === true || options.isHost === "true";
-
-    // Tolak pemain yang tidak terdaftar pada sesi kompetisi
-    if (allowedIds.length > 0 && !isHostClient) {
-        if (!candidateIds.some((id) => allowedIds.includes(id))) {
-            throw new Error("NOT_REGISTERED_COMPETITION");
-        }
-    }
-
-    return true;
-}
-```
-
----
-
-### 6. Pengecekan *Late Join* & Spawn Karakter di Server (`onJoin`)
-Setelah lolos `onAuth`, server mengeksekusi `onJoin` untuk memasukkan pemain ke dalam state permainan, menentukan koordinat spawn dari map Tiled, serta mengalokasikan sub-room:
-
-```typescript title="Penanganan Server-Side onJoin"
-async onJoin(client: Client, options: any) {
-    const userId = options.userId;
-
-    // 1. Blokir pemain baru jika kuis sudah aktif
-    if (this.state.isGameStarted || this.state.countdown > 0) {
-        const isSessionReconnect = this.state.players.has(client.sessionId);
-        const isUserReconnect = Array.from(this.state.players.values()).some(p => p.userId === userId);
-        if (!isSessionReconnect && !isUserReconnect) {
-            throw new Error("GAME_STARTED");
-        }
-    }
-
-    // 2. Inisialisasi entitas Player baru
-    const player = new Player();
-    player.sessionId = client.sessionId;
-    player.userId = userId;
-    player.name = (options.name || "Player").substring(0, 20);
-    player.hairId = options.hairId !== undefined ? options.hairId : Math.floor(Math.random() * 7);
-
-    // 3. Tentukan Spawn Point dari Tiled Map
-    const mapData = MapParser.loadMapData(this.state.difficulty);
-    if (mapData && mapData.playerSpawns && mapData.playerSpawns.length > 0) {
-        let spawnIndex = mapData.playerSpawns.findIndex((_, i) => !this.usedSpawnIndices.has(i));
-        if (spawnIndex === -1) spawnIndex = Math.floor(Math.random() * mapData.playerSpawns.length);
-
-        this.usedSpawnIndices.add(spawnIndex);
-        const spawn = mapData.playerSpawns[spawnIndex];
-        player.x = spawn.x;
-        player.y = spawn.y;
-    }
-
-    // 4. Masukkan ke state sinkronisasi & simpan ke database
-    this.state.players.set(client.sessionId, player);
-
-    const participantEntry = this.buildParticipantEntry(player);
-    await this.enqueueParticipantWrite(async () => {
-        await this.upsertParticipantEntry(participantEntry);
+    document.getElementById('btn-close-qr')?.addEventListener('click', () => {
+      this.close();
+      onClose();
     });
+  }
+
+  private startScanner(onSuccess: (pin: string) => void) {
+    this.scanner = new Html5QrcodeScanner(
+      "qr-reader",
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      false
+    );
+
+    this.scanner.render(
+      (decodedText) => {
+        // Ekstrak 6-digit PIN dari URL atau teks QR
+        const pinMatch = decodedText.match(/\b\d{6}\b/);
+        if (pinMatch) {
+          const pin = pinMatch[0];
+          this.close();
+          onSuccess(pin);
+        }
+      },
+      (error) => {
+        // Mengabaikan frame scan yang belum mendeteksi QR
+      }
+    );
+  }
+
+  public close() {
+    if (this.scanner) {
+      this.scanner.clear().catch(console.error);
+    }
+    this.modalContainer.remove();
+  }
+}
+```
+
+* **File dibuat**: `client/src/components/QRScannerModal.ts`
+* **Fungsi**: Membuka kamera browser secara otomatis dan mengekstrak PIN 6-digit saat barcode terdeteksi.
+
+---
+
+## Langkah 2: Memvalidasi Input PIN & Nickname
+
+Buat file validator `client/src/utils/validation.ts`:
+
+```typescript title="client/src/utils/validation.ts"
+export interface JoinPayload {
+  nickname: string;
+  roomCode: string;
+  hairOption: string;
+}
+
+export function validateJoinInput(nickname: string, pin: string, hair: string): { isValid: boolean; error?: string } {
+  if (!nickname || nickname.trim().length === 0) {
+    return { isValid: false, error: 'Nickname tidak boleh kosong.' };
+  }
+  if (nickname.trim().length > 15) {
+    return { isValid: false, error: 'Nickname maksimal 15 karakter.' };
+  }
+  if (!/^\d{6}$/.test(pin.trim())) {
+    return { isValid: false, error: 'PIN Room harus terdiri dari tepat 6 digit angka.' };
+  }
+  return { isValid: true };
 }
 ```
 
 ---
 
-### 7. Pemulihan Sesi Otomatis Saat Refresh (*Token Reconnect*)
-Jika koneksi internet pemain terputus atau pemain me-refresh halaman browser, client memulihkan koneksi menggunakan `reconnectionToken` tanpa kehilangan status permainan:
+## Langkah 3: Menghubungkan Player ke Room Colyseus
 
-```typescript title="Pemulihan Sesi via Token Reconnect"
-// Jalur cepat: Token reconnect (bekerja meski room sudah locked)
-const token = SessionStore.get('currentReconnectionToken', role);
-if (token) {
-    try {
-        const restoredRoom = await client.reconnect(token);
-        return finalizeRoom(restoredRoom, role);
-    } catch (tokenErr) {
-        console.warn("[Restore] Token reconnect failed, falling back to joinById retries...");
-    }
+Pada handler aksi join di `client/src/main.ts`, hubungkan validasi input ke pemanggilan service room:
+
+```typescript title="client/src/main.ts (Potongan Logika Join)"
+import { validateJoinInput } from './utils/validation';
+import { RoomService } from './services/room/RoomService';
+
+async function handlePlayerJoin(nickname: string, pin: string, hair: string) {
+  const check = validateJoinInput(nickname, pin, hair);
+  if (!check.isValid) {
+    alert(check.error);
+    return;
+  }
+
+  try {
+    const roomService = RoomService.getInstance();
+    // Bergabung ke room Colyseus dengan mengirim payload identitas player
+    await roomService.joinRoomByPin(pin, {
+      nickname: nickname.trim(),
+      hairOption: hair,
+      isHost: false
+    });
+
+    // Simpan identitas ke sessionStorage untuk pemulihan state saat refresh
+    sessionStorage.setItem('zigma_player_name', nickname.trim());
+    sessionStorage.setItem('zigma_room_code', pin.trim());
+
+    // Alihkan ke Scene Waiting Room / Game Player
+    window.location.hash = `#/player/${pin}/game`;
+  } catch (err: any) {
+    alert(`Gagal masuk ke room: ${err.message || 'Room tidak ditemukan atau sudah penuh.'}`);
+  }
 }
 ```
+
+Dengan langkah ini, alur bergabung bagi player telah lengkap mulai dari pemindaian kamera, validasi lokal, hingga inisialisasi sesi WebSocket.
