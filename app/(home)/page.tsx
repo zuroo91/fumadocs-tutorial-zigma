@@ -153,15 +153,13 @@ export default function HomePage() {
             <Target className="size-4" />
             Lihat Tutorial
           </Link>
-          <a
-            href="https://gameforsmart.com"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/docs/pengenalan/gambaran-umum"
             className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-5 py-2.5 text-sm font-semibold hover:bg-fd-accent transition-colors"
           >
             <Globe className="size-4" />
-            gameforsmart.com
-          </a>
+            Gambaran Umum
+          </Link>
         </div>
       </section>
 
