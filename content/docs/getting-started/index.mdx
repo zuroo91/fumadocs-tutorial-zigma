@@ -19,7 +19,7 @@ Halaman ini memandu kamu untuk menyiapkan lingkungan pengembangan dan menginisia
 
 Sebelum membuat project, pastikan seluruh kebutuhan sistem dan tools berikut sudah terpasang dan siap digunakan:
 
-* **Node.js (LTS $\ge$ 18.0.0) & npm** — Runtime JavaScript untuk menjalankan backend Colyseus/Express dan mengelola paket dependensi. Unduh dari [nodejs.org](https://nodejs.org/) dan verifikasi dengan `node -v` serta `npm -v`.
+* **Node.js (LTS ≥ 18.0.0) & npm** — Runtime JavaScript untuk menjalankan backend Colyseus/Express dan mengelola paket dependensi. Unduh dari [nodejs.org](https://nodejs.org/) dan verifikasi dengan `node -v` serta `npm -v`.
 * **Git** — Version control untuk pelacakan kode sumber. Unduh dari [git-scm.com](https://git-scm.com/) dan verifikasi dengan `git --version`.
 * **Redis Server (Port 6379)** — Penyimpan state sesi room (*Presence Driver*) untuk Colyseus. Pasang via Memurai/WSL 2/Docker di Windows, atau package manager (`redis-server` / `brew install redis`) di Linux/macOS. Verifikasi dengan `redis-cli ping` $\rightarrow$ `PONG`.
 * **Akun & Project Supabase** — Layanan database PostgreSQL dan autentikasi SSO. Buat project baru di [supabase.com](https://supabase.com/) lalu catat Project URL, Anon Key (client), dan Service Role Key (server) dari menu *Project Settings → API*.

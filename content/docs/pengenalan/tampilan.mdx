@@ -21,30 +21,41 @@ Halaman utama (`/`) bertindak sebagai pusat navigasi awal bagi seluruh pengguna 
 ![Dashboard Utama Zigma](/images/homepage.png)
 
 ### Menu & Elemen Utama:
-* **Form Join Room**: Tempat player memasukkan **PIN 6-digit** dan **Nickname** untuk bergabung ke dalam permainan secara cepat.
+* **Form Join Room**: Tempat player memasukkan **PIN 6-digit** untuk bergabung ke dalam permainan secara cepat.
 * **Scan QR Code**: Opsi bagi player perangkat mobile untuk memindai QR Code room langsung melalui kamera browser.
 * **Tombol Host Create Room**: Akses khusus bagi instruktur/host untuk mengonfigurasi dan membuka sesi kuis baru.
-* **Kustomisasi Karakter**: Panel pemilih gaya rambut dan warna avatar karakter 2D player sebelum masuk ke room.
-
 ---
 
 ## 2. Antarmuka Sisi Host
 
 Host memiliki layar tampilan khusus untuk mengelola kuis, mengontrol alur permainan, dan memantau progres seluruh peserta.
 
-### A. Host Lobby
+### A. Select Quiz (Katalog Pemilihan Kuis)
+Layar pemilihan paket kuis bagi Host sebelum membuat room atau memainkan mode Tryout.
+
+![Halaman Select Quiz Zigma](/images/select-quiz.png)
+
+* **Fungsi Utama**: Menjadi katalog paket soal kuis publik bagi Host untuk mencari, memfilter, dan memilih materi kuis yang akan digunakan dalam room permainan.
+* **Fitur & Elemen yang Terlihat**:
+  * **Search Bar**: Kotak pencarian judul kuis secara cepat.
+  * **Dropdown Filter**: Filter materi berdasarkan Kategori (*Category*), Jenjang Kelas (*Grade/Jenjang*), dan Bahasa (*Language*).
+  * **Filter Cepat (Quiz Saya & Favorit)**: Tombol ikon profil untuk menampilkan kuis buatan sendiri dan tombol ikon hati untuk menampilkan kuis yang difavoritkan.
+  * **Grid Kartu Kuis**: Menampilkan daftar kuis dalam tata letak kartu (3×3 per halaman) lengkap dengan badge kategori, jenjang pendidikan, judul, dan status favorit.
+  * **Navigasi Pagination**: Kontrol halaman (`< PREV`, indikator halaman `1 / 23`, dan `NEXT >`) untuk menjelajahi katalog kuis.
+
+### B. Host Lobby
 Layar ruang tunggu yang ditampilkan host sebelum permainan dimulai.
 
 ![Host Lobby Zigma](/images/host-lobby.png)
 
 * **Fungsi Utama**: Menampilkan **PIN Room 6-digit** dalam ukuran besar, menyajikan **QR Code** untuk di-scan player, menampilkan daftar kartu player yang telah bergabung secara real-time, serta menyediakan tombol **Start Game**.
 
-### B. Host Monitor 
+### C. Host Monitor 
 Layar pantauan player saat kuis berlangsung.
 
 ![Host Monitor Zigma](/images/host-monitor.png)
 
-* **Fungsi Utama**: Menampilkan peta arena 2D secara *bird-eye view*, melacak pergerakan karakter seluruh siswa di arena, serta menampilkan statistik persentase pengerjaan kuis dan skor terkini secara live.
+* **Fungsi Utama**: Menampilkan peta arena 2D secara *bird-eye view*, melacak pergerakan karakter seluruh player di arena, serta menampilkan statistik persentase pengerjaan kuis.
 
 ---
 
@@ -64,4 +75,4 @@ Modal overlay HTML yang muncul di atas canvas 2D saat player menebas monster kui
 
 ![Modal Kuis Interaktif Zigma](/images/sistem-kuis.png)
 
-* **Fungsi Utama**: Menyajikan teks pertanyaan kuis, pilihan jawaban interaktif, timer countdown per soal, indikator jumlah soal tersisa, dan umpan balik visual saat jawaban diverifikasi oleh server.
+* **Fungsi Utama**: Menyajikan teks pertanyaan kuis, pilihan jawaban interaktif. 
