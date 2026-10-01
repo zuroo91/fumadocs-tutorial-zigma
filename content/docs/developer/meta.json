@@ -1,0 +1,14 @@
+{
+  "title": "Sisi Developer",
+  "pages": [
+    "getting-started",
+    "stack",
+    "structure",
+    "database",
+    "karakter",
+    "combat",
+    "multiplayer",
+    "deploy",
+    "tutorial"
+  ]
+}

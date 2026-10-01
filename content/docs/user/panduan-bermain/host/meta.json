@@ -1,0 +1,10 @@
+{
+  "title": "Host",
+  "pages": [
+    "select-quiz",
+    "create-room",
+    "host-lobby",
+    "host-monitor",
+    "leaderboard"
+  ]
+}

@@ -12,6 +12,8 @@ import {
   Boxes,
   FolderTree,
   Database,
+  Play,
+  Layers,
 } from 'lucide-react';
 
 
@@ -129,28 +131,22 @@ export default function HomePage() {
           Supabase. Dari setup monorepo hingga deployment PM2 cluster.
         </p>
 
-        <div className="flex flex-wrap justify-center gap-3">
+        <div className="flex flex-wrap justify-center gap-4 mt-8">
           <Link
-            href="/docs/getting-started"
-            className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}
+            href="/docs/user/pengenalan/gambaran-umum"
+            className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-transform hover:scale-105"
+            style={{ backgroundColor: '#8b5cf6' }}
           >
-            <Rocket className="size-4" />
-            Mulai Bangun Game
+            <Play className="size-5 fill-current" />
+            User
           </Link>
           <Link
-            href="/docs/tutorial"
-            className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-5 py-2.5 text-sm font-semibold hover:bg-fd-accent transition-colors"
+            href="/docs/developer/getting-started"
+            className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-transform hover:scale-105"
+            style={{ background: 'linear-gradient(135deg, #1e1b4b, #4c1d95)' }}
           >
-            <Target className="size-4" />
-            Lihat Tutorial
-          </Link>
-          <Link
-            href="/docs/pengenalan/gambaran-umum"
-            className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-5 py-2.5 text-sm font-semibold hover:bg-fd-accent transition-colors"
-          >
-            <Globe className="size-4" />
-            Gambaran Umum
+            <Layers className="size-5" />
+            Developer
           </Link>
         </div>
       </section>
@@ -195,7 +191,7 @@ export default function HomePage() {
             Modul Game
           </h2>
           <Link
-            href="/docs/tutorial"
+            href="/docs/developer/tutorial"
             className="text-sm text-fd-muted-foreground hover:text-fd-primary transition-colors"
           >
             Lihat Semua →

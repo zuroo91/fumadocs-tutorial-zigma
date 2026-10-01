@@ -1,0 +1,8 @@
+{
+  "title": "Player",
+  "pages": [
+    "waiting-room",
+    "gameplay",
+    "result"
+  ]
+}

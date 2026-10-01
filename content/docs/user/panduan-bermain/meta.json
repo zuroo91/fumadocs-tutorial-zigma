@@ -1,0 +1,11 @@
+{
+  "title": "Panduan Bermain",
+  "pages": [
+    "login",
+    "home-page",
+    "join-game",
+    "host",
+    "player",
+    "tryout"
+  ]
+}
