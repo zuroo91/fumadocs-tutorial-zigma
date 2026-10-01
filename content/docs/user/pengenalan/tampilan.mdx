@@ -1,78 +1,154 @@
 ---
 title: Tampilan Zigma
-description: Panduan mengenal antarmuka pengguna, menu utama, dan layar tampilan Host dan Player pada Zigma.
+description: Ringkasan singkat seluruh antarmuka pengguna, menu, dan alur layar Zigma yang dibahas di Panduan Bermain.
 icon: Monitor
 ---
 
 # Tampilan Zigma
 
-Halaman ini menjelaskan bagian-bagian utama antarmuka pengguna (UI) pada Zigma agar kamu dapat memahami fungsi setiap tampilan sebelum masuk ke langkah pembuatan game.
-
-<Callout type="info">
-  Ingin langsung mencoba Zigma? Kunjungi [**zigma.gameforsmart.com**](https://zigma.gameforsmart.com) untuk memainkan versi live-nya.
-</Callout>
+Halaman ini menyajikan rangkuman visual dari seluruh layar antarmuka pengguna (UI) di Zigma. Setiap tampilan di bawah ini akan Anda temui saat mengikuti panduan bermain, mulai dari masuk ke aplikasi hingga melihat hasil akhir permainan.
 
 ---
 
-## 1. Dashboard & Halaman Utama
+## 1. Autentikasi & Menu Utama
 
-Halaman utama (`/`) bertindak sebagai pusat navigasi awal bagi seluruh pengguna platform.
+### A. Layar Login
+Layar pertama yang diakses user untuk masuk ke sistem Zigma menggunakan akun Google atau Guest.
 
-![Dashboard Utama Zigma](/images/homepage.png)
+![Layar Login Zigma](/images/login.png)
 
-### Menu & Elemen Utama:
-* **Form Join Room**: Tempat player memasukkan **PIN 6-digit** untuk bergabung ke dalam permainan secara cepat.
-* **Scan QR Code**: Opsi bagi player perangkat mobile untuk memindai QR Code room langsung melalui kamera browser.
-* **Tombol Host Create Room**: Akses khusus bagi instruktur/host untuk mengonfigurasi dan membuka sesi kuis baru.
+* **Fungsi**: Memverifikasi identitas pemain sebelum masuk ke menu utama.
+
 ---
 
-## 2. Antarmuka Sisi Host
+### B. Home Page
+Pusat navigasi setelah berhasil login untuk memilih mode permainan atau mengatur aplikasi.
 
-Host memiliki layar tampilan khusus untuk mengelola kuis, mengontrol alur permainan, dan memantau progres seluruh peserta.
+![Home Page Zigma](/images/homepage.png)
 
-### A. Select Quiz (Katalog Pemilihan Kuis)
-Layar pemilihan paket kuis bagi Host sebelum membuat room atau memainkan mode Tryout.
+* **Menu Utama**: Tombol **Join Game** dan **Host Game**.
+* **Menu Ekstra (Burger Bar ☰ kanan atas)**: Bahasa (*Language*), Panduan (*How to Play*), Install PWA (*Install App*), Layar Penuh (*Fullscreen*), dan Keluar (*Logout*).
+
+---
+
+## 2. Alur Bergabung (Join Game)
+
+Layar yang digunakan oleh pemain untuk memasukkan kode unik permainan.
+
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-4 not-prose">
+  <div className="flex flex-col rounded-xl border border-fd-border bg-fd-card overflow-hidden">
+    <div className="p-3 border-b border-fd-border bg-fd-muted/30 text-center">
+      <span className="font-semibold text-sm">Metode 1: Input PIN / QR Code</span>
+    </div>
+    <div className="p-3 flex items-center justify-center bg-fd-muted/10 h-72">
+      <img src="/images/join.png" alt="Layar Join Game" className="max-h-full max-w-full object-contain rounded-lg shadow-sm" />
+    </div>
+    <div className="p-3 text-xs text-fd-muted-foreground border-t border-fd-border text-center">
+      Form memasukkan kode PIN 6-digit atau scan QR Code di Home Page.
+    </div>
+  </div>
+
+  <div className="flex flex-col rounded-xl border border-fd-border bg-fd-card overflow-hidden">
+    <div className="p-3 border-b border-fd-border bg-fd-muted/30 text-center">
+      <span className="font-semibold text-sm">Metode 2: Tautan Undangan (Link)</span>
+    </div>
+    <div className="p-3 flex items-center justify-center bg-fd-muted/10 h-72">
+      <img src="/images/host-join.png" alt="Tautan Undangan di Host Lobby" className="max-h-full max-w-full object-contain rounded-lg shadow-sm" />
+    </div>
+    <div className="p-3 text-xs text-fd-muted-foreground border-t border-fd-border text-center">
+      Tautan langsung yang dapat disalin dan dibagikan dari layar Host Lobby.
+    </div>
+  </div>
+</div>
+
+---
+
+## 3. Antarmuka Sisi Host & Pemilihan Kuis
+
+### A. Select Quiz (Katalog Kuis)
+Katalog bagi Host untuk mencari dan memilih topik kuis yang akan digunakan.
 
 ![Halaman Select Quiz Zigma](/images/select-quiz.png)
 
-* **Fungsi Utama**: Menjadi katalog paket soal kuis publik bagi Host untuk mencari, memfilter, dan memilih materi kuis yang akan digunakan dalam room permainan.
-* **Fitur & Elemen yang Terlihat**:
-  * **Search Bar**: Kotak pencarian judul kuis secara cepat.
-  * **Dropdown Filter**: Filter materi berdasarkan Kategori (*Category*), Jenjang Kelas (*Grade/Jenjang*), dan Bahasa (*Language*).
-  * **Filter Cepat (Quiz Saya & Favorit)**: Tombol ikon profil untuk menampilkan kuis buatan sendiri dan tombol ikon hati untuk menampilkan kuis yang difavoritkan.
-  * **Grid Kartu Kuis**: Menampilkan daftar kuis dalam tata letak kartu (3×3 per halaman) lengkap dengan badge kategori, jenjang pendidikan, judul, dan status favorit.
-  * **Navigasi Pagination**: Kontrol halaman (`< PREV`, indikator halaman `1 / 23`, dan `NEXT >`) untuk menjelajahi katalog kuis.
-
-### B. Host Lobby
-Layar ruang tunggu yang ditampilkan host sebelum permainan dimulai.
-
-![Host Lobby Zigma](/images/host-lobby.png)
-
-* **Fungsi Utama**: Menampilkan **PIN Room 6-digit** dalam ukuran besar, menyajikan **QR Code** untuk di-scan player, menampilkan daftar kartu player yang telah bergabung secara real-time, serta menyediakan tombol **Start Game**.
-
-### C. Host Monitor 
-Layar pantauan player saat kuis berlangsung.
-
-![Host Monitor Zigma](/images/host-monitor.png)
-
-* **Fungsi Utama**: Menampilkan peta arena 2D secara *bird-eye view*, melacak pergerakan karakter seluruh player di arena, serta menampilkan statistik persentase pengerjaan kuis.
+* **Fungsi**: Memfilter paket kuis berdasarkan kategori, jenjang pendidikan, serta bahasa.
 
 ---
 
-## 3. Antarmuka Sisi Player
+### B. Dialog Detail Kuis
+Pop-up yang muncul ketika salah satu kartu kuis diklik.
 
-Player berinteraksi dengan dua lapisan tampilan utama selama permainan: canvas 2D Phaser dan modal overlay HTML.
+![Dialog Detail Kuis](/images/dialog-detail.png)
 
-### A. Arena Gameplay 2D
-Layar arena permainan 2D di mana player mengendalikan avatar karakter.
+* **Play Now**: Mengarahkan ke mode latihan mandiri (**Tryout**).
+* **Start Quiz**: Membuat sesi multiplayer baru sebagai **Host**.
 
-![Arena Gameplay 2D Zigma](/images/gameplay.png)
+---
 
-* **Fungsi Utama**: Merender peta tilemap 2D, sprite karakter player, monster pembawa kuis (skeleton & goblin), peti harta karun, serta kontrol navigasi (WASD / D-Pad Sentuh Mobile).
+### C. Halaman Setting (Pengaturan Sesi)
+Layar penyesuaian konfigurasi sebelum permainan dimulai.
 
-### B. Modal Kuis Interaktif (`QuizPopup`)
-Modal overlay HTML yang muncul di atas canvas 2D saat player menebas monster kuis.
+| Setting Host | Setting Tryout |
+| :---: | :---: |
+| ![Setting Host](/images/setting%20host.png) | ![Setting Tryout](/images/setting%20tryout.png) |
 
-![Modal Kuis Interaktif Zigma](/images/sistem-kuis.png)
+* **Pengaturan Umum**: Mengatur tingkat kesulitan map permainan (*Difficulty*), durasi waktu, jumlah soal, dan audio (*sound*).
+* **Perbedaan Utama**: Pada Setting Tryout tersedia fitur **pemilihan karakter**, sedangkan pada Setting Host tidak ada.
 
-* **Fungsi Utama**: Menyajikan teks pertanyaan kuis, pilihan jawaban interaktif. 
+---
+
+### D. Host Lobby
+Ruang tunggu yang ditampilkan di layar Host sebelum memulai pertandingan multiplayer.
+
+![Host Lobby Zigma](/images/host-lobby.png)
+
+* **Fungsi**: Menampilkan **PIN Room**, **QR Code**, daftar pemain yang telah bergabung, dan tombol **Start Game**.
+
+---
+
+### E. Host Monitor (Progress Permainan)
+Layar pemantau live saat pertandingan sedang berjalan.
+
+![Host Monitor Zigma](/images/host-monitor.png)
+
+* **Fungsi**: Memantau pergerakan karakter seluruh pemain di peta 2D dan melihat progres pengerjaan soal secara *real-time*.
+
+---
+
+### F. Leaderboard (Klasemen Akhir)
+Layar penutupan pertandingan yang ditampilkan di layar Host.
+
+![Leaderboard Zigma](/images/leaderboard.jpeg)
+
+* **Fungsi**: Menampilkan podium juara 3 besar dan klasemen skor akhir seluruh pemain.
+
+---
+
+## 4. Antarmuka Sisi Player
+
+### A. Waiting Room (Ruang Tunggu Pemain)
+Layar tunggu pemain setelah memasukkan kode room.
+
+![Waiting Room Zigma](/images/waitingroom.png)
+
+* **Fungsi**: Pemain dapat memilih dan mengkustomisasi tampilan karakter sambil menunggu Host menekan tombol mulai.
+
+---
+
+### B. Arena Gameplay 2D & Modal Kuis
+Layar permainan interaktif tempat pemain beraksi dan menjawab soal.
+
+| Arena Gameplay 2D | Modal Kuis Interaktif |
+| :---: | :---: |
+| ![Arena Gameplay](/images/gameplay.png) | ![Modal Kuis](/images/sistem-kuis.png) |
+
+* **Arena Gameplay**: Karakter menjelajahi arena tilemap 2D dengan joystick/keyboard untuk menebas monster dan membuka peti harta.
+* **Modal Kuis**: Layar pop-up pertanyaan pilihan ganda yang muncul saat pemain berinteraksi dengan monster kuis.
+
+---
+
+### C. Layar Result (Hasil Pemain)
+Layar yang muncul di perangkat masing-masing pemain setelah sesi permainan berakhir.
+
+![Result Pemain Zigma](/images/result.png)
+
+* **Fungsi**: Menampilkan total skor yang dikumpulkan dan peringkat akhir pemain secara individu.

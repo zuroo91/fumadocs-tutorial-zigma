@@ -1,15 +1,81 @@
 ---
 title: Waiting Room
-description: Ruang tunggu pemain sebelum Host memulai permainan.
+description: Ruang tunggu pemain sebelum Host memulai permainan dan panduan memilih karakter.
 ---
 
 # Waiting Room (Ruang Tunggu Pemain)
 
 ![Tampilan Waiting Room](/images/waitingroom.png)
 
-Setelah berhasil masuk menggunakan kode room, Anda akan ditempatkan di **Waiting Room**.
+Setelah berhasil masuk Anda akan ditempatkan di **Waiting Room**.
 
-### Yang Dapat Anda Lakukan:
-- **Pilih Karakter**: Anda dapat mengkustomisasi tampilan karakter Anda (misalnya: mengganti model karakter atau rambut).
-- **Bersiap**: Pastikan koneksi internet stabil sambil menunggu instruksi dari Host.
-- Permainan akan otomatis dimulai dan Anda akan dipindahkan ke arena permainan (Gameplay) ketika Host mengklik tombol "Mulai".
+### Aktivitas di Waiting Room:
+1. **Pilih Karakter**: Mengkustomisasi tampilan dan gaya rambut karakter Anda sebelum bertanding.
+2. **Periksa Nama**: Pastikan nama/nickname Anda sudah sesuai dan terdaftar di layar.
+3. **Bersiap**: Menunggu Host memulai permainan. Ketika Host menekan tombol **Start Game**, Anda akan otomatis dialihkan ke arena gameplay 2D.
+
+---
+
+## Pilihan Karakter & Gaya Rambut
+
+Pemain dapat menekan tombol **"Choose Character"** di Waiting Room untuk membuka pop-up pemilihan karakter. Terdapat **7 variasi tampilan karakter** yang dapat digunakan secara bebas:
+
+<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 my-6 not-prose">
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/Cuplikan_layar_2026-09-25_142530-removebg-preview.png" alt="Default" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Default</span>
+    <span className="text-xs text-fd-muted-foreground mt-0.5">Tanpa Rambut</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/shorthair.png" alt="Short Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Short Hair</span>
+    <span className="text-xs text-fd-muted-foreground mt-0.5">Rambut Pendek</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/spikeyhair.png" alt="Spikey Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Spikey Hair</span>
+    <span className="text-xs text-fd-muted-foreground mt-0.5">Rambut Jabrik</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/curlyhair.png" alt="Curly Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Curly Hair</span>
+    <span className="text-xs text-fd-muted-foreground mt-0.5">Rambut Keriting</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/bowlhair.png" alt="Bowl Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Bowl Hair</span>
+    <span className="text-xs text-fd-muted-foreground mt-0.5">Rambut Mangkok</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/mophair.png" alt="Mop Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Mop Hair</span>
+    <span className="text-xs text-fd-muted-foreground mt-0.5">Rambut Poni Tebal</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/longhair.png" alt="Long Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Long Hair</span>
+    <span className="text-xs text-fd-muted-foreground mt-0.5">Rambut Panjang</span>
+  </div>
+</div>
+
+> **Tips:** Karakter yang Anda pilih akan otomatis tersimpan di browser Anda, sehingga pilihan Anda akan tetap tersimpan saat mengikuti sesi kuis berikutnya!

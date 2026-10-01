@@ -30,3 +30,17 @@ html > body[data-scroll-locked] {
 a[href*="/docs/getting-started"] {
   font-weight: 700 !important;
 }
+
+/* Mode terang: hilangkan warna background pada search bar */
+html:not(.dark) button[data-search-full],
+:root:not(.dark) button[data-search-full],
+html:not(.dark) [data-search-full] {
+  background-color: transparent !important;
+}
+
+html:not(.dark) button[data-search-full]:hover,
+:root:not(.dark) button[data-search-full]:hover,
+html:not(.dark) [data-search-full]:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+

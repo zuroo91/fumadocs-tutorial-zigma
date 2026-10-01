@@ -1,17 +1,52 @@
 ---
 title: Join Game
-description: Cara bergabung ke dalam permainan yang sudah ada.
+description: Panduan cara bergabung ke dalam sesi permainan Zigma menggunakan PIN, QR Code, atau tautan langsung.
 ---
 
 # Join Game
 
-![Tampilan Join Game](/images/join.png)
+Jika Anda ingin bermain bersama teman dalam sesi yang sudah dibuat oleh Host, terdapat **dua pilihan metode** untuk bergabung:
 
-Jika Anda ingin bermain bersama teman dan teman Anda sudah membuat ruangan, Anda dapat bergabung melalui menu Join Game.
+<div className="grid grid-cols-1 md:grid-cols-2 gap-5 my-6 not-prose">
+  <div className="flex flex-col rounded-xl border border-fd-border bg-fd-card overflow-hidden shadow-sm">
+    <div className="p-4 border-b border-fd-border bg-fd-muted/30">
+      <div className="flex items-center gap-2">
+        <span className="flex size-6 items-center justify-center rounded-full bg-fd-primary text-xs font-bold text-white">1</span>
+        <h3 className="font-semibold text-base text-fd-foreground">Input PIN atau Scan QR Code</h3>
+      </div>
+      <p className="text-xs text-fd-muted-foreground mt-1">Gunakan form di Home Page untuk memasukkan kode ruangan secara manual.</p>
+    </div>
+    <div className="p-4 flex items-center justify-center bg-fd-muted/10 h-80">
+      <img src="/images/join.png" alt="Layar Join Game" className="max-h-full max-w-full object-contain rounded-lg shadow-sm" />
+    </div>
+    <div className="p-4 border-t border-fd-border bg-fd-card text-xs text-fd-muted-foreground space-y-1.5 flex-1">
+      <p><strong className="text-fd-foreground">Langkah Bergabung:</strong></p>
+      <ol className="list-decimal list-inside space-y-1">
+        <li>Dari <strong>Home Page</strong>, pilih tombol <strong>Join Game</strong>.</li>
+        <li>Masukkan <strong>PIN 6-digit</strong> atau scan QR Code di layar Host.</li>
+        <li>Klik tombol <strong>Join</strong> untuk masuk ke Waiting Room.</li>
+      </ol>
+    </div>
+  </div>
 
-### Langkah-langkah Bergabung:
-1. Dari halaman **Dashboard**, pilih opsi **Join Game**.
-2. Masukkan **Kode Room** (PIN) yang diberikan oleh Host.
-3. (Opsional) Scan kode QR jika Host menampilkannya di layar.
-4. Klik tombol **Join** atau **Masuk**.
-5. Anda akan diarahkan ke **Waiting Room** sambil menunggu Host memulai permainan.
+  <div className="flex flex-col rounded-xl border border-fd-border bg-fd-card overflow-hidden shadow-sm">
+    <div className="p-4 border-b border-fd-border bg-fd-muted/30">
+      <div className="flex items-center gap-2">
+        <span className="flex size-6 items-center justify-center rounded-full bg-fd-primary text-xs font-bold text-white">2</span>
+        <h3 className="font-semibold text-base text-fd-foreground">Tautan Langsung (Link)</h3>
+      </div>
+      <p className="text-xs text-fd-muted-foreground mt-1">Gabung secara instan melalui URL undangan yang dibagikan oleh Host.</p>
+    </div>
+    <div className="p-4 flex items-center justify-center bg-fd-muted/10 h-80">
+      <img src="/images/host-join.png" alt="Tautan Undangan di Host Lobby" className="max-h-full max-w-full object-contain rounded-lg shadow-sm" />
+    </div>
+    <div className="p-4 border-t border-fd-border bg-fd-card text-xs text-fd-muted-foreground space-y-1.5 flex-1">
+      <p><strong className="text-fd-foreground">Langkah Bergabung:</strong></p>
+      <ol className="list-decimal list-inside space-y-1">
+        <li>Host menyalin tautan dari bagian bawah layar <strong>Host Lobby</strong>.</li>
+        <li>Host membagikan link ke para pemain (WhatsApp, grup, dll).</li>
+        <li>Pemain membuka link untuk <strong>langsung masuk ke Waiting Room</strong>.</li>
+      </ol>
+    </div>
+  </div>
+</div>

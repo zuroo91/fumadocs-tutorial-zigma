@@ -7,7 +7,7 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: 'Game Docs – Membangun Game Kuis RPG',
+  title: 'Zigma Docs – Membangun Game Kuis RPG',
   description:
     'Dokumentasi & tutorial teknis membangun game kuis RPG multiplayer real-time.',
 };
