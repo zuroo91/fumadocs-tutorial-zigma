@@ -1,0 +1,332 @@
+---
+title: Tryout Mode
+description: Langkah demi langkah membangun mode latihan mandiri (Tryout) dari Select Quiz, konfigurasi sesi, solo gameplay Phaser, hingga isolasi skor evaluasi.
+icon: FlaskConical
+---
+
+# Membangun Fitur Tryout Mode (Mode Latihan Mandiri)
+
+Mode **Tryout** dirancang agar pengguna dapat menguji pemahaman dan berlatih kuis secara mandiri (*single-player*) tanpa membutuhkan pemain lain ataupun menunggu sinkronisasi room Colyseus publik. 
+
+Pada tutorial ini, kamu akan membangun implementasi Tryout Mode dari awal menggunakan arsitektur modular Zigma: mulai dari trigger di modal kuis, pemisahan state ber-prefix, pemilihan karakter pada setting, inisialisasi sesi solo, hingga isolasi data hasil dari leaderboard kompetitif.
+
+![Halaman Setting Tryout Mode Zigma](/images/setting%20tryout.png)
+
+---
+
+## Perbedaan Arsitektur: Host Game vs Tryout Mode
+
+Sebelum menulis kode, pahami bagaimana Zigma membedakan kedua mode ini:
+
+| Aspek | Host Game (Multiplayer) | Tryout Mode (Single Player) |
+| :--- | :--- | :--- |
+| **Pemicu Mulai** | Tombol `MULAI GAME` (`isTryout = false`) | Tombol `TRYOUT` / `Play Now` (`isTryout = true`) |
+| **Prefix Penyimpanan** | Standar (tanpa prefix) | Menggunakan prefix `tryout_` |
+| **URL Route** | `/host/${roomCode}/settings` | `/tryout/${roomCode}/settings` |
+| **Fitur di Setting** | Konfigurasi room & waktu kuis saja | Konfigurasi waktu + **Pemilihan Karakter** |
+| **Alur Waiting Room** | Masuk ke Waiting Room multiplayer (`LobbyScene`) | **Bypass** waiting room, langsung ke `GameScene` |
+| **Sinkronisasi Colyseus** | Room publik multi-client (`maxClients = 50`) | Mode solo offline/private room tanpa peers |
+| **Leaderboard** | Masuk ke klasemen global/kompetitif sesi | **Terisolasi** (hanya disimpan untuk evaluasi pribadi) |
+
+---
+
+## Langkah 1: Menambahkan Trigger Tryout pada Modal Select Quiz
+
+Di dalam halaman `Select Quiz`, ketika pengguna mengklik salah satu kartu kuis, modal pop-up menampilkan detail soal beserta 2 pilihan tombol: **TRYOUT** dan **MULAI GAME**.
+
+Modifikasi file `client/src/scenes/host/selectquiz/page.ts` untuk mendengarkan event klik tombol Tryout:
+
+```typescript title="client/src/scenes/host/selectquiz/page.ts"
+export class SelectQuizManager {
+  private selectedQuiz: Quiz | null = null;
+
+  // Inisialisasi event listener modal
+  private setupModalListeners() {
+    const tryoutBtn = document.getElementById('modal-tryout-btn');
+    const hostBtn = document.getElementById('modal-start-game-btn');
+
+    // 1. Trigger Tryout Mode
+    tryoutBtn?.addEventListener('click', () => {
+      if (this.selectedQuiz) {
+        this.selectQuizAndProceed(this.selectedQuiz, true); // isTryout = true
+      }
+    });
+
+    // 2. Trigger Host Multiplayer
+    hostBtn?.addEventListener('click', () => {
+      if (this.selectedQuiz) {
+        this.selectQuizAndProceed(this.selectedQuiz, false); // isTryout = false
+      }
+    });
+  }
+}
+```
+
+* **File terkait**: `client/src/scenes/host/selectquiz/page.ts`
+* **Fungsi**: Membedakan aksi pengguna dengan mengirimkan flag boolean `isTryout`.
+
+---
+
+## Langkah 2: State Prefixing & Navigasi Routing
+
+Logika inti pembeda Tryout berada pada fungsi `selectQuizAndProceed`. Mode Tryout tetap menghasilkan kode PIN 6-digit untuk menjaga konsistensi id sesi, namun menyimpan state sementara dengan prefix `tryout_`:
+
+```typescript title="client/src/scenes/host/selectquiz/page.ts (selectQuizAndProceed)"
+private selectQuizAndProceed(quiz: Quiz, isTryout: boolean) {
+  this.closeQuizDetailModal();
+
+  TransitionManager.transitionTo(() => {
+    this.cleanup();
+    this.hideUI();
+
+    // 1. Generate PIN room 6 digit unik
+    const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 2. Tentukan prefix penyimpanan LocalStorage
+    const prefix = isTryout ? 'tryout_' : '';
+    localStorage.setItem(`${prefix}tempSettingsQuizId`, quiz.id);
+    localStorage.setItem(`${prefix}pendingRoomCode`, roomCode);
+
+    // 3. Routing dinamis berdasarkan mode
+    const nextUrl = isTryout ? `/tryout/${roomCode}/settings` : `/host/${roomCode}/settings`;
+    Router.navigate(nextUrl);
+
+    // 4. Inisialisasi QuizSettingManager dengan flag tryoutMode
+    import('../[roomCode]/quizsetting/page').then(m => {
+      const manager = new m.QuizSettingManager();
+      manager.init({ 
+        quiz, 
+        client: this.client, 
+        roomCode, 
+        tryoutMode: isTryout 
+      });
+    });
+  });
+}
+```
+
+* **Kunci State**:
+  * `tryout_tempSettingsQuizId`: Menyimpan ID kuis yang dipilih untuk sesi latihan.
+  * `tryout_pendingRoomCode`: Menyimpan PIN identifikasi sesi tryout.
+  * `tryoutMode: isTryout`: Flag parameter yang menentukan perilaku komponen berikutnya.
+
+---
+
+## Langkah 3: Menangani Pemilihan Karakter di Quiz Setting
+
+Pada mode Host biasa, host hanya bertindak sebagai moderator room sehingga tidak membutuhkan avatar. Sebaliknya, pada **Tryout Mode**, pengguna bertindak sebagai pemain langsung sehingga antarmuka harus memunculkan **Character Picker** (rambut, outfit, dan warna).
+
+Modifikasi `client/src/scenes/host/[roomCode]/quizsetting/page.ts`:
+
+```typescript title="client/src/scenes/host/[roomCode]/quizsetting/page.ts"
+export interface QuizSettingInitOptions {
+  quiz: Quiz;
+  client: any;
+  roomCode: string;
+  tryoutMode: boolean;
+}
+
+export class QuizSettingManager {
+  private isTryout: boolean = false;
+  private selectedHair: string = 'SHORT';
+  private playerNickname: string = 'Player';
+
+  init(options: QuizSettingInitOptions) {
+    this.isTryout = options.tryoutMode;
+    this.renderView();
+    this.bindEvents(options);
+  }
+
+  private renderView() {
+    // Render UI form waktu dan acak soal
+    this.renderCommonSettings();
+
+    // Kondisional: Tampilkan Character Picker HANYA pada mode Tryout
+    if (this.isTryout) {
+      this.renderCharacterSelector();
+    }
+  }
+
+  private renderCharacterSelector() {
+    const characterContainer = document.getElementById('character-picker-container');
+    if (!characterContainer) return;
+
+    characterContainer.classList.remove('hidden');
+    characterContainer.innerHTML = `
+      <div class="bg-gray-800/80 border border-gray-700 rounded-2xl p-5 mt-4">
+        <h3 class="text-sm font-bold text-teal-400 uppercase tracking-wider mb-3">PILIH KARAKTER ANDA</h3>
+        <div class="flex items-center gap-4">
+          <button type="button" class="hair-option-btn p-3 bg-gray-700 rounded-xl hover:ring-2 hover:ring-teal-400" data-hair="SHORT">
+            Pendek
+          </button>
+          <button type="button" class="hair-option-btn p-3 bg-gray-700 rounded-xl hover:ring-2 hover:ring-teal-400" data-hair="SPIKEY">
+            Spikey
+          </button>
+          <button type="button" class="hair-option-btn p-3 bg-gray-700 rounded-xl hover:ring-2 hover:ring-teal-400" data-hair="BRAID">
+            Kepang
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Pasang listener pilihan gaya rambut
+    characterContainer.querySelectorAll('.hair-option-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        this.selectedHair = (e.currentTarget as HTMLElement).dataset.hair || 'SHORT';
+      });
+    });
+  }
+}
+```
+
+---
+
+## Langkah 4: Meluncurkan Gameplay Solo (Bypass Waiting Room)
+
+Saat tombol **Lanjut** ditekan di halaman Setting, sistem tidak mengarahkan pengguna ke waiting room multiplayer (`/lobby`), melainkan langsung menginstansiasi `GameScene` dengan konfigurasi solo:
+
+```typescript title="client/src/scenes/host/[roomCode]/quizsetting/page.ts (startGame)"
+private onProceedClicked() {
+  if (this.isTryout) {
+    // 1. Simpan konfigurasi karakter solo
+    localStorage.setItem('tryout_player_hair', this.selectedHair);
+
+    // 2. Transisi langsung ke Gameplay Arena solo tanpa menunggu pemain lain
+    TransitionManager.transitionTo(() => {
+      this.cleanup();
+      
+      Router.navigate(`/tryout/${this.roomCode}/play`);
+      
+      // Jalankan GameScene Phaser langsung
+      const game = (window as any).zigmaGameInstance;
+      game.scene.start('GameScene', {
+        isTryout: true,
+        roomCode: this.roomCode,
+        quizId: localStorage.getItem('tryout_tempSettingsQuizId'),
+        hairOption: this.selectedHair
+      });
+    });
+  } else {
+    // Alur biasa Host: Tunggu di Waiting Room publik
+    Router.navigate(`/host/${this.roomCode}/lobby`);
+  }
+}
+```
+
+---
+
+## Langkah 5: Eksekusi Quiz & Hitbox di GameScene Solo
+
+Di dalam `GameScene.ts`, sistem mendeteksi flag `isTryout`. Pengerjaan kuis (tebasan pedang, animasi kamera sinematik, dan pop-up `QuizPopup`) berjalan dengan aset dan mekanik yang sama persis seperti mode multiplayer:
+
+```typescript title="client/src/scenes/player/GameScene.ts"
+export class GameScene extends Phaser.Scene {
+  private isTryout: boolean = false;
+  private quizQuestions: any[] = [];
+  private answeredCount: number = 0;
+  private correctCount: number = 0;
+
+  init(data: any) {
+    this.isTryout = !!data.isTryout;
+    this.hairOption = data.hairOption || 'SHORT';
+  }
+
+  create() {
+    // Setup peta & karakter lokal
+    this.setupMap();
+    this.setupLocalPlayer();
+
+    // Jika Tryout, muat soal kuis langsung dari cache / Supabase lokal
+    if (this.isTryout) {
+      this.loadSoloQuizQuestions();
+    }
+  }
+
+  // Dipanggil saat QuizPopup selesai dijawab
+  handleAnswerSubmitted(isCorrect: boolean) {
+    this.answeredCount++;
+    if (isCorrect) this.correctCount++;
+
+    // Jika seluruh soal selesai, langsung alihkan ke Result
+    if (this.answeredCount >= this.quizQuestions.length) {
+      this.finishTryoutSession();
+    }
+  }
+
+  private finishTryoutSession() {
+    const summary = {
+      nickname: 'Anda (Tryout)',
+      hairOption: this.hairOption,
+      score: this.correctCount * 100,
+      totalQuestions: this.quizQuestions.length,
+      correctAnswers: this.correctCount,
+      timeSpentSeconds: this.elapsedSeconds,
+      rank: 1,
+      isTryout: true
+    };
+
+    this.scene.stop('GameScene');
+    new ResultManager(summary, () => {
+      Router.navigate('/select-quiz');
+    });
+  }
+}
+```
+
+---
+
+## Langkah 6: Isolasi Evaluasi Hasil (`ResultManager`)
+
+Poin krusial pada Tryout Mode adalah **skor tidak boleh mencemari leaderboard multiplayer**. 
+
+Pada `client/src/scenes/player/ResultManager.ts`, periksa properti `isTryout`:
+
+```typescript title="client/src/scenes/player/ResultManager.ts"
+export class ResultManager {
+  constructor(summary: any, onBackHome: () => void) {
+    // 1. Simpan history personal lokal
+    if (summary.isTryout) {
+      const historyKey = 'tryout_history';
+      const existing = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      existing.push({
+        date: new Date().toISOString(),
+        score: summary.score,
+        accuracy: Math.round((summary.correctAnswers / summary.totalQuestions) * 100)
+      });
+      localStorage.setItem(historyKey, JSON.stringify(existing));
+      
+      console.log("[Tryout] Hasil latihan disimpan secara lokal. Bypass database leaderboard.");
+    } else {
+      // Sesi multiplayer: kirim ke endpoint leaderboard Supabase
+      this.syncScoreToSupabaseLeaderboard(summary);
+    }
+
+    this.render(summary, onBackHome);
+  }
+}
+```
+
+---
+
+## Ringkasan Alur Data Tryout Mode
+
+```mermaid
+graph TD
+    A[Halaman Select Quiz] -->|Klik Kartu| B[Modal Detail Kuis];
+    B -->|Klik TRYOUT / Play Now| C[selectQuizAndProceed(quiz, isTryout = true)];
+    
+    C --> D[Generate PIN Room & Set Prefix tryout_];
+    D --> E[Route: /tryout/roomCode/settings];
+    
+    E --> F[QuizSettingManager: Render Pengaturan + Karakter];
+    F -->|Klik Lanjut| G[Bypass Waiting Room: Langsung start GameScene];
+    
+    G --> H[GameScene: Single-player Dungeon & Monster Combat];
+    H -->|Serang Monster| I[QuizPopup Interaktif];
+    I -->|Selesai Seluruh Soal| J[ResultManager: Evaluasi Nilai Personal];
+    
+    J --> K[Simpan ke tryout_history - Isolasi dari Leaderboard Publik];
+    K --> L[Tombol Kembali: Navigasi ke Select Quiz];
+```
+
+Dengan langkah-langkah di atas, Tryout Mode telah terpasang secara modular, aman, dan konsisten dengan seluruh alur kerja proyek Zigma.

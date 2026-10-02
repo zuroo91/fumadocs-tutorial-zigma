@@ -1,19 +1,20 @@
 import Link from 'next/link';
 import {
-  Rocket,
   Swords,
   Shield,
   Zap,
   Globe,
   Trophy,
   BarChart3,
-  Server,
-  Target,
-  Boxes,
-  FolderTree,
-  Database,
   Play,
   Layers,
+  BookOpen,
+  LogIn,
+  LayoutDashboard,
+  UserPlus,
+  Crown,
+  Gamepad2,
+  Target,
 } from 'lucide-react';
 
 
@@ -23,7 +24,7 @@ const phases = [
     name: 'Tutorial Zigma',
     description:
       'Bangun game kuis multiplayer real-time lengkap dengan sistem room, gameplay, kuis, dan ranking.',
-    href: '/docs/tutorial',
+    href: '/docs/developer/tutorial',
     icon: Swords,
     color: 'from-violet-500/20 to-blue-500/20',
     border: 'border-violet-500/30 hover:border-violet-400',
@@ -32,7 +33,7 @@ const phases = [
     name: 'Karakter & Tampilan',
     description:
       'Kustomisasi karakter Human 2D dengan layered sprites dan pilihan gaya rambut (HAIR_OPTIONS).',
-    href: '/docs/karakter',
+    href: '/docs/developer/karakter',
     icon: Shield,
     color: 'from-emerald-500/20 to-teal-500/20',
     border: 'border-emerald-500/30 hover:border-emerald-400',
@@ -41,7 +42,7 @@ const phases = [
     name: 'Sistem Combat & Aksi',
     description:
       'Mekanika tebasan 2D, AI musuh yang melarikan diri (flee), kamera sinematik, dan transisi ke kuis.',
-    href: '/docs/combat',
+    href: '/docs/developer/combat',
     icon: Zap,
     color: 'from-orange-500/20 to-red-500/20',
     border: 'border-orange-500/30 hover:border-orange-400',
@@ -50,7 +51,7 @@ const phases = [
     name: 'Multiplayer',
     description:
       'Sinkronisasi real-time WebSocket dengan Colyseus 0.15, partisi sub-room pulau, dan interpolasi LERP.',
-    href: '/docs/multiplayer',
+    href: '/docs/developer/multiplayer',
     icon: Globe,
     color: 'from-cyan-500/20 to-sky-500/20',
     border: 'border-cyan-500/30 hover:border-cyan-400',
@@ -59,7 +60,7 @@ const phases = [
     name: 'Progress & Rewards',
     description:
       'Formula skor proporsional 100/N, bonus peti harta karun (chest), dan pencatatan akurasi.',
-    href: '/docs/tutorial/host/progress-rewards',
+    href: '/docs/developer/tutorial/host/progress-rewards',
     icon: Trophy,
     color: 'from-yellow-500/20 to-amber-500/20',
     border: 'border-yellow-500/30 hover:border-yellow-400',
@@ -68,37 +69,49 @@ const phases = [
     name: 'Leaderboard',
     description:
       'Podium juara 3 besar dan klasemen skor akhir pertandingan di layar Host.',
-    href: '/docs/tutorial/host/leaderboard-ranking',
+    href: '/docs/developer/tutorial/host/leaderboard-ranking',
     icon: BarChart3,
     color: 'from-pink-500/20 to-rose-500/20',
     border: 'border-pink-500/30 hover:border-pink-400',
   },
 ];
 
-const quickLinks = [
+const userGuides = [
   {
-    title: 'Struktur Project',
-    description: 'Arsitektur monorepo Zigma — client, server, dan shared beserta file-file kuncinya.',
-    href: '/docs/structure',
-    icon: FolderTree,
+    title: 'Login',
+    description: 'Panduan masuk ke dalam game Zigma menggunakan Google atau akun Guest.',
+    href: '/docs/user/panduan-bermain/login',
+    icon: LogIn,
   },
   {
-    title: 'Stack Teknologi',
-    description: 'Vite, Phaser 3, Colyseus, Express, Supabase, Redis — pilihan stack dan alasan teknisnya.',
-    href: '/docs/stack',
-    icon: Boxes,
+    title: 'Dashboard',
+    description: 'Mengenal tampilan Home Page, navigasi menu, profil, dan pengaturan game.',
+    href: '/docs/user/panduan-bermain/home-page',
+    icon: LayoutDashboard,
   },
   {
-    title: 'Database Schema',
-    description: 'Skema database Supabase untuk users, questions, rooms, dan match history.',
-    href: '/docs/database',
-    icon: Database,
+    title: 'Join Game',
+    description: 'Cara bergabung ke ruangan kuis menggunakan kode PIN unik atau scan QR Code.',
+    href: '/docs/user/panduan-bermain/player/join-game',
+    icon: UserPlus,
   },
   {
-    title: 'Deploy & Monitoring',
-    description: 'Panduan deploy server Colyseus + Express dan monitoring performa game.',
-    href: '/docs/deploy',
-    icon: Server,
+    title: 'Host',
+    description: 'Memilih kuis, mengatur durasi room, dan memimpin jalannya sesi multiplayer.',
+    href: '/docs/user/panduan-bermain/host/select-quiz',
+    icon: Crown,
+  },
+  {
+    title: 'Player',
+    description: 'Kustomisasi karakter, kontrol gerakan 2D, aksi pedang, dan melihat skor hasil.',
+    href: '/docs/user/panduan-bermain/player/waiting-room',
+    icon: Gamepad2,
+  },
+  {
+    title: 'Tryout',
+    description: 'Mode latihan mandiri untuk mencoba kuis tanpa memerlukan pemain lain.',
+    href: '/docs/user/panduan-bermain/tryout',
+    icon: Target,
   },
 ];
 
@@ -151,19 +164,19 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Quick Links */}
+      {/* User Guides */}
       <section className="w-full max-w-5xl px-6 mb-12">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Zap className="size-5 text-fd-primary" />
-          Mulai dari Sini
+          <BookOpen className="size-5 text-fd-primary" />
+          Panduan Bermain Zigma
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {quickLinks.map((link) => {
-            const Icon = link.icon;
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {userGuides.map((guide) => {
+            const Icon = guide.icon;
             return (
               <Link
-                key={link.title}
-                href={link.href}
+                key={guide.title}
+                href={guide.href}
                 className="group flex items-start gap-4 rounded-xl border border-fd-border bg-fd-card p-5 hover:bg-fd-accent transition-colors"
               >
                 <div className="rounded-lg bg-fd-primary/10 p-2 text-fd-primary">
@@ -171,10 +184,10 @@ export default function HomePage() {
                 </div>
                 <div>
                   <div className="font-semibold group-hover:text-fd-primary transition-colors">
-                    {link.title}
+                    {guide.title}
                   </div>
                   <div className="text-sm text-fd-muted-foreground mt-0.5">
-                    {link.description}
+                    {guide.description}
                   </div>
                 </div>
               </Link>

@@ -34,23 +34,27 @@ Pembangunan Zigma dibagi menjadi beberapa tahapan modul yang terstruktur:
 
 ## Daftar Modul Tutorial
 
-### 1. Fondasi & Autentikasi
-* **[Setup & Autentikasi](/docs/tutorial/setup-autentikasi)** — Inisialisasi struktur workspace, konfigurasi environment, dan integrasi autentikasi SSO Supabase (`AuthService`).
-* **[Homepage & Dashboard](/docs/tutorial/homepage-dashboard)** — Membangun antarmuka beranda, bootstrap DOM di atas Phaser 3, sistem multi-bahasa, dan pemilih avatar rambut karakter.
+### 1. Fondasi, Autentikasi & Navigasi
+* **[Setup & Autentikasi](/docs/developer/tutorial/setup-autentikasi)** — Inisialisasi struktur workspace, konfigurasi environment, dan integrasi autentikasi SSO Supabase (`AuthService`).
+* **[Homepage & Dashboard](/docs/developer/tutorial/homepage-dashboard)** — Membangun antarmuka beranda, bootstrap DOM di atas Phaser 3, sistem multi-bahasa, dan pemilih avatar rambut karakter.
+* **[Select Quiz](/docs/developer/tutorial/select-quiz)** — Membangun katalog pemilihan kuis dari database Supabase, filter kategori, dan modal detail kuis.
 
 ### 2. Sisi Player (Klien Peserta)
-* **[Join Session](/docs/tutorial/join/join-session)** — Mengimplementasikan form input PIN 6-digit, validasi nickname, dan scanner QR Code (`html5-qrcode`).
-* **[Mode Multipemain](/docs/tutorial/player/multiplayer)** — Membangun `RoomService` menggunakan `colyseus.js` untuk sinkronisasi state biner WebSocket secara real-time.
-* **[Sistem Gameplay](/docs/tutorial/player/sistem-gameplay)** — Membangun scene 2D Phaser 3, parsing tilemap Tiled, kontrol pergerakan (WASD & Virtual Joystick), dan interaksi peti harta karun.
-* **[Sistem Quiz](/docs/tutorial/player/sistem-kuis)** — Membangun hitbox tebasan pedang, efek kamera sinematik zoom-in, dan modal interaktif `QuizPopup`.
-* **[Sistem Result](/docs/tutorial/player/sistem-result)** — Membangun antarmuka `ResultManager` untuk kartu evaluasi nilai dan statistik personal siswa.
+* **[Join Session](/docs/developer/tutorial/player/join-session)** — Mengimplementasikan form input PIN 6-digit, validasi nickname, dan scanner QR Code (`html5-qrcode`).
+* **[Mode Multipemain](/docs/developer/tutorial/player/multiplayer)** — Membangun `RoomService` menggunakan `colyseus.js` untuk sinkronisasi state biner WebSocket secara real-time.
+* **[Sistem Gameplay](/docs/developer/tutorial/player/sistem-gameplay)** — Membangun scene 2D Phaser 3, parsing tilemap Tiled, kontrol pergerakan (WASD & Virtual Joystick), dan interaksi peti harta karun.
+* **[Sistem Quiz](/docs/developer/tutorial/player/sistem-kuis)** — Membangun hitbox tebasan pedang, efek kamera sinematik zoom-in, dan modal interaktif `QuizPopup`.
+* **[Sistem Result](/docs/developer/tutorial/player/sistem-result)** — Membangun antarmuka `ResultManager` untuk kartu evaluasi nilai dan statistik personal siswa.
 
 ### 3. Sisi Host (Klien Penyelenggara & Server)
-* **[Host: Create Room](/docs/tutorial/host/create-room)** — Membangun logika pembuatan room di server Colyseus (`GameRoom.ts`), query bank soal Supabase, dan pembagian PIN 6-digit.
-* **[Host: Host Lobby](/docs/tutorial/host/host-lobby)** — Membangun scene ruang tunggu `HostWaitingRoomScene`, generator QR Code join, pemantauan daftar peserta, dan broadcast mulai game.
-* **[Host: Host Monitor](/docs/tutorial/host/host-monitor)** — Membangun scene live spectator `HostProgressScene` untuk memantau pergerakan karakter dan bilah progres kuis seluruh peserta.
-* **[Scoring & Rewards](/docs/tutorial/host/progress-rewards)** — Mengimplementasikan formula kalkulasi skor authoritative server, bonus kecepatan, dan buff peti arena.
-* **[Leaderboard & Ranking](/docs/tutorial/host/leaderboard-ranking)** — Membangun tampilan podium 3 besar, tabel klasemen akhir, dan sinkronisasi hasil kuis ke PostgreSQL.
+* **[Host: Create Room](/docs/developer/tutorial/host/create-room)** — Membangun logika pembuatan room di server Colyseus (`GameRoom.ts`), query bank soal Supabase, dan pembagian PIN 6-digit.
+* **[Host: Host Lobby](/docs/developer/tutorial/host/host-lobby)** — Membangun scene ruang tunggu `HostWaitingRoomScene`, generator QR Code join, pemantauan daftar peserta, dan broadcast mulai game.
+* **[Host: Host Monitor](/docs/developer/tutorial/host/host-monitor)** — Membangun scene live spectator `HostProgressScene` untuk memantau pergerakan karakter dan bilah progres kuis seluruh peserta.
+* **[Scoring & Rewards](/docs/developer/tutorial/host/progress-rewards)** — Mengimplementasikan formula kalkulasi skor authoritative server, bonus kecepatan, dan buff peti arena.
+* **[Leaderboard & Ranking](/docs/developer/tutorial/host/leaderboard-ranking)** — Membangun tampilan podium 3 besar, tabel klasemen akhir, dan sinkronisasi hasil kuis ke PostgreSQL.
 
-### 4. Pengujian & Deployment
-* **[Deploy & Testing](/docs/tutorial/deploy-testing)** — Membangun `BotSimulatorManager` untuk simulasi beban multi-klien dan persiapan deployment server produksi.
+### 4. Mode Mandiri (Tryout)
+* **[Tryout Mode](/docs/developer/tutorial/tryout-mode)** — Membangun sesi latihan solo, pemilihan karakter pada setting, bypass waiting room, dan isolasi evaluasi hasil kuis.
+
+### 5. Pengujian & Deployment
+* **[Deploy & Testing](/docs/developer/tutorial/deploy-testing)** — Membangun `BotSimulatorManager` untuk simulasi beban multi-klien dan persiapan deployment server produksi.

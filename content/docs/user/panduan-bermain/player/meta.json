@@ -1,6 +1,7 @@
 {
   "title": "Player",
   "pages": [
+    "join-game",
     "waiting-room",
     "gameplay",
     "result"

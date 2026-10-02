@@ -1,13 +1,14 @@
 {
   "title": "Tutorial",
+  "icon": "BookOpen",
   "pages": [
     "index",
     "setup-autentikasi",
     "homepage-dashboard",
-    "join",
     "select-quiz",
     "host",
     "player",
+    "tryout-mode",
     "deploy-testing"
   ]
 }

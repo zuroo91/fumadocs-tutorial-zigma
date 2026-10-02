@@ -1,0 +1,166 @@
+---
+title: Sistem Karakter
+description: Kustomisasi karakter pemain berdasarkan model dasar Human dan gaya rambut (HAIR_OPTIONS).
+icon: Users
+---
+
+# Sistem Karakter
+
+Karakter pemain yang dapat dimainkan (playable character) menggunakan satu model dasar Human (Manusia) dengan sistem kustomisasi visual bertingkat (layered sprites): Tubuh Dasar (Base Body) + Alat/Senjata (Tools) + Gaya Rambut (Hair).
+Pilihan kustomisasi karakter yang tersedia untuk pemain dibedakan berdasarkan gaya rambut (`HAIR_OPTIONS`):
+
+<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 my-6 not-prose">
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/Cuplikan_layar_2026-09-25_142530-removebg-preview.png" alt="Default" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Default</span>
+    <code className="text-xs text-fd-muted-foreground mt-0.5 bg-fd-muted px-1.5 py-0.5 rounded">none</code>
+    <span className="text-xs text-fd-muted-foreground mt-1">Botak / Tanpa rambut</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/bowlhair.png" alt="Bowl Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Bowl Hair</span>
+    <code className="text-xs text-fd-muted-foreground mt-0.5 bg-fd-muted px-1.5 py-0.5 rounded">bowl-hair</code>
+    <span className="text-xs text-fd-muted-foreground mt-1">bowlhair_idle / walk</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/curlyhair.png" alt="Curly Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Curly Hair</span>
+    <code className="text-xs text-fd-muted-foreground mt-0.5 bg-fd-muted px-1.5 py-0.5 rounded">curly-hair</code>
+    <span className="text-xs text-fd-muted-foreground mt-1">curlyhair_idle / walk</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/longhair.png" alt="Long Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Long Hair</span>
+    <code className="text-xs text-fd-muted-foreground mt-0.5 bg-fd-muted px-1.5 py-0.5 rounded">long-hair</code>
+    <span className="text-xs text-fd-muted-foreground mt-1">longhair_idle / walk</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/mophair.png" alt="Mop Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Mop Hair</span>
+    <code className="text-xs text-fd-muted-foreground mt-0.5 bg-fd-muted px-1.5 py-0.5 rounded">mop-hair</code>
+    <span className="text-xs text-fd-muted-foreground mt-1">mophair_idle / walk</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/shorthair.png" alt="Short Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Short Hair</span>
+    <code className="text-xs text-fd-muted-foreground mt-0.5 bg-fd-muted px-1.5 py-0.5 rounded">short-hair</code>
+    <span className="text-xs text-fd-muted-foreground mt-1">shorthair_idle / walk</span>
+  </div>
+
+  <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-fd-border bg-fd-card text-center hover:border-fd-primary transition-colors shadow-sm">
+    <div className="h-20 w-20 flex items-center justify-center mb-2">
+      <img src="/images/karakter/spikeyhair.png" alt="Spikey Hair" className="max-h-full max-w-full object-contain" />
+    </div>
+    <span className="font-semibold text-sm">Spikey Hair</span>
+    <code className="text-xs text-fd-muted-foreground mt-0.5 bg-fd-muted px-1.5 py-0.5 rounded">spikey-hair</code>
+    <span className="text-xs text-fd-muted-foreground mt-1">spikeyhair_idle / walk</span>
+  </div>
+</div>
+
+---
+
+## Bagaimana Player Memilih & Mendapatkan Karakter?
+
+Semua variasi karakter/rambut terbuka secara gratis (*free selection*), tidak ada sistem gacha atau pembelian berbayar. Berikut adalah alur serta potongan kode implementasinya:
+
+### 1. Pemilihan di Waiting Room
+Di halaman ruang tunggu pemain, pemain dapat menekan tombol **"Choose Character"**. Tombol ini membuka pop-up `CharacterSelectPopup` yang menampilkan grid pilihan gaya rambut serta preview animasi bergerak (*idle animation*) secara langsung.
+
+**Modul:** Antarmuka Ruang Tunggu Pemain
+
+```typescript
+// 1. Event listener tombol "Choose Character"
+const chooseCharBtn = document.getElementById('player-choose-char-btn');
+if (chooseCharBtn) {
+    chooseCharBtn.onclick = () => {
+        const myPlayer = this.room.state.players.get(this.mySessionId);
+        // Buka modal pop-up dengan hairId yang sedang aktif
+        this.characterPopup?.show(myPlayer?.hairId || 0);
+    };
+}
+
+// 2. Inisialisasi CharacterSelectPopup
+this.characterPopup = new CharacterSelectPopup(
+    HAIR_OPTIONS,
+    (hairId) => {
+        // Kirim update ke server Colyseus secara realtime
+        if (this.room) this.room.send("updateHair", { hairId });
+        
+        // Simpan preferensi pilihan ke localStorage
+        localStorage.setItem('player_hair_id', hairId.toString());
+    },
+    () => { /* callback saat popup ditutup */ }
+);
+```
+
+---
+
+### 2. Penyimpanan Lokal (*Local Persistence*) & Auto-Load saat Join
+Karakter yang dipilih disimpan ke `localStorage` browser dengan kunci `'player_hair_id'`. Ketika pemain masuk ke room atau bermain di sesi berikutnya, pilihan karakter tersebut langsung dimuat secara otomatis oleh modul lobi utama.
+
+**Modul:** Inisialisasi Join Lobi
+
+```typescript
+// Ambil hairId yang sebelumnya tersimpan di localStorage browser
+const savedHairId = localStorage.getItem('player_hair_id');
+
+// Sertakan hairId ke dalam opsi join room
+const joinOptions = {
+    name: nickname,
+    userId: userId,
+    profileId: profile.id,
+    authUserId: profile.auth_user_id || undefined,
+    avatarUrl: profile.avatar_url || "",
+    hairId: savedHairId ? parseInt(savedHairId) : undefined, // Dimuat otomatis
+    sessionId: "",
+    isHost: false
+};
+
+// Bergabung ke room Colyseus dengan opsi tersebut
+const room = await this.client.joinById(targetRoom.roomId, joinOptions);
+```
+
+---
+
+### 3. Sinkronisasi di Server Colyseus
+Klien mengirim pesan `updateHair` dengan payload `{ hairId }` ke server Colyseus. Server memvalidasi ID (0–6), menetapkannya ke schema state `player.hairId`, dan menyiarkannya ke seluruh pemain lain di dalam room.
+
+**Modul:** Handler State GameRoom
+
+```typescript
+// A. Saat pemain pertama kali bergabung (onJoin)
+player.hairId =
+    options.hairId !== undefined
+        ? options.hairId
+        : Math.floor(Math.random() * 7); // Random jika belum memilih (ID 0 - 6)
+
+// B. Handler pesan saat pemain mengganti karakter di waiting room (onMessage)
+this.onMessage("updateHair", (client, data) => {
+    const player = this.getPlayerByClient(client);
+    if (player && data.hairId !== undefined) {
+        // Update state room — otomatis disinkronkan ke semua client pemain
+        player.hairId = Number(data.hairId);
+
+        // Simpan pembaruan partisipan ke database
+        this.syncParticipantToGameSessions(client);
+    }
+});
+```
+

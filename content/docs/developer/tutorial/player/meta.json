@@ -2,6 +2,7 @@
   "title": "Player",
   "icon": "Gamepad2",
   "pages": [
+    "join-session",
     "multiplayer",
     "sistem-gameplay",
     "sistem-kuis",
